@@ -1,0 +1,4 @@
+# filepath: /Users/gal/Desktop/aigie-demo-app/pyproject.toml
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"

@@ -1,0 +1,3 @@
+# filepath: /Users/gal/Desktop/aigie-demo-app/requirements.txt
+# Example dependencies
+requests
