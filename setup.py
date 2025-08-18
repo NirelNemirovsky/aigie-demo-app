@@ -1,7 +1,7 @@
 from setuptools import setup, find_packages
 
 setup(
-    name="aigie_demo_app",
+    name="aigie",
     version="0.1.0",
     description="The Package that fixes you AI world",
     author="AG",
