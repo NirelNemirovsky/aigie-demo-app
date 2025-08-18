@@ -8,5 +8,5 @@ setup(
     author_email="support@aigie.ai",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
-    install_requires=["tenacity", "langchain-core"],
+    install_requires=["tenacity", "langchain-core", "langgraph"],
 )
