@@ -1,4 +1,4 @@
-from langgraph import StateGraph
+from langgraph.graph import StateGraph
 from .aigie_node import PolicyNode
 
 class AigieStateGraph(StateGraph):
