@@ -2,8 +2,13 @@
 from typing import Any, Dict, Optional, Iterable, Union
 from langchain_core.runnables import Runnable, RunnableConfig
 from tenacity import retry, stop_after_attempt, wait_exponential
+from google.cloud import logging
 
 GraphLike = Dict[str, Any]  # your GraphState type
+
+# Configure GCP logging
+client = logging.Client()
+gcp_logger = client.logger(__name__)
 
 class PolicyNode(Runnable[GraphLike, GraphLike]):
     def __init__(
@@ -79,3 +84,41 @@ class PolicyNode(Runnable[GraphLike, GraphLike]):
                 yield {"event": "error", "error": {"node": self.name, "type": type(e).__name__, "msg": str(e)}}
         # Fallback to non-stream invoke if inner doesn't support stream
         yield self.invoke(state, config=config)
+
+    def on_error(self, exc: Exception, attempt: int, state: GraphLike) -> None:
+        """
+        Categorizes the error and logs it appropriately using GCP logger.
+
+        Args:
+            exc (Exception): The exception that occurred.
+            attempt (int): The current attempt number.
+            state (GraphLike): The current state of the graph.
+        """
+        error_type = type(exc).__name__
+        error_message = str(exc)
+
+        # Categorize the error
+        if isinstance(exc, ValueError):
+            category = "Validation Error"
+        elif isinstance(exc, KeyError):
+            category = "Key Error"
+        elif isinstance(exc, RuntimeError):
+            category = "Runtime Error"
+        else:
+            category = "Unknown Error"
+
+        # Log the error using GCP logger
+        gcp_logger.log_text(
+            f"Error occurred in node '{self.name}' (Attempt {attempt}): "
+            f"[{category}] {error_type}: {error_message}",
+            severity="ERROR"
+        )
+
+        # Optional: Add custom handling logic here
+        # For example, update the state with error details
+        state["error_details"] = {
+            "category": category,
+            "type": error_type,
+            "message": error_message,
+            "attempt": attempt,
+        }
