@@ -43,8 +43,11 @@ class PolicyNode(Runnable[GraphLike, GraphLike]):
                 out = self._invoke_once(cur_state, config)
                 # Normalize: succeed with error=None
                 out = {**cur_state, **out, "error": None, "last_node": self.name}
+                print("=================NO EXCEPTION=================")
                 return out
             except Exception as e:  # catch *everything* here
+                print(f"Attempt {attempt + 1} failed in node '{self.name}': {str(e)}")
+                print("=================EXCEPTION=================")
                 last_exc = e
                 attempt += 1
                 if self.on_error:
