@@ -1,5 +1,5 @@
-# filepath: /Users/gal/Desktop/aigie-demo-app/requirements.txt
-# Example dependencies
-requests
+# Core dependencies for aigie package
 tenacity
 langchain-core
+langgraph
+google-cloud-logging
