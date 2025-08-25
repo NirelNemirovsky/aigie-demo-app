@@ -1,6 +1,9 @@
 from langgraph.graph import StateGraph
 from .enhanced_policy_node import EnhancedPolicyNode
-from typing import Any, Dict, Optional, TypedDict, List
+from typing import Any, Dict, Optional, Type, TypeVar, Union
+from pydantic import BaseModel
+
+T = TypeVar('T', bound=BaseModel)
 
 class AigieStateGraph(StateGraph):
     """
@@ -11,10 +14,11 @@ class AigieStateGraph(StateGraph):
     2. Provides AI-powered remediation suggestions using Gemini 2.5 Flash
     3. Offers automatic error fixing capabilities
     4. Maintains comprehensive error analytics and logging
+    5. Natively supports Pydantic models for state management
     """
 
     def __init__(self, 
-                 state_schema: Optional[type] = None,
+                 state_schema: Optional[Type[BaseModel]] = None,
                  enable_gemini_remediation: bool = True,
                  gemini_project_id: Optional[str] = None,
                  auto_apply_fixes: bool = False,
@@ -23,20 +27,24 @@ class AigieStateGraph(StateGraph):
         Initialize the AigieStateGraph with enhanced error handling capabilities.
         
         Args:
-            state_schema: Optional schema type for the state. If None, uses a default schema.
+            state_schema: Pydantic model class for the state schema. If None, uses a default schema.
             enable_gemini_remediation: Whether to enable Gemini AI-powered error remediation
             gemini_project_id: GCP project ID for Gemini (if None, will auto-detect)
             auto_apply_fixes: Whether to automatically apply AI-suggested fixes
             log_remediation: Whether to log remediation analysis to GCP
         """
         if state_schema is None:
-            # Use a simple TypedDict schema that's compatible with langgraph
-            class DefaultState(TypedDict):
-                messages: List[str]
-                state: Dict[str, Any]
+            # Use a simple Pydantic model as default schema
+            class DefaultState(BaseModel):
+                messages: list[str] = []
+                state: Dict[str, Any] = {}
             
             state_schema = DefaultState
         
+        # Store the state schema for validation
+        self.state_schema = state_schema
+        
+        # Initialize the underlying StateGraph with the Pydantic schema
         super().__init__(state_schema)
         
         # Store configuration for enhanced error handling
@@ -95,6 +103,60 @@ class AigieStateGraph(StateGraph):
             # If no node_data, just add the node_id (for conditional nodes)
             super().add_node(node_id, node_data)
             print(f"✅ Conditional node '{node_id}' added successfully.")
+
+    def validate_state(self, state: Union[BaseModel, Dict[str, Any]]) -> bool:
+        """
+        Validate that a state conforms to the expected schema.
+        
+        Args:
+            state: State to validate (Pydantic model or dictionary)
+            
+        Returns:
+            True if valid, False otherwise
+        """
+        try:
+            if isinstance(state, dict):
+                self.state_schema(**state)
+            elif isinstance(state, self.state_schema):
+                pass  # Already the right type
+            else:
+                return False
+            return True
+        except Exception:
+            return False
+
+    def to_dict(self, state: Union[BaseModel, Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Convert a state to dictionary format.
+        
+        Args:
+            state: State as Pydantic model or dictionary
+            
+        Returns:
+            Dictionary representation
+        """
+        if isinstance(state, dict):
+            return state.copy()
+        elif isinstance(state, BaseModel):
+            # Use Pydantic's model_dump() method (v2) or dict() method (v1)
+            if hasattr(state, 'model_dump'):
+                return state.model_dump()
+            else:
+                return state.dict()
+        else:
+            raise ValueError(f"Unsupported state type: {type(state)}")
+
+    def from_dict(self, state_dict: Dict[str, Any]) -> BaseModel:
+        """
+        Convert a dictionary to Pydantic model.
+        
+        Args:
+            state_dict: Dictionary representation
+            
+        Returns:
+            Pydantic model instance
+        """
+        return self.state_schema(**state_dict)
 
     def get_node_analytics(self, node_id: Optional[str] = None) -> Dict[str, Any]:
         """
@@ -177,7 +239,8 @@ class AigieStateGraph(StateGraph):
             "configuration": {
                 "enable_gemini_remediation": self.enable_gemini_remediation,
                 "auto_apply_fixes": self.auto_apply_fixes,
-                "log_remediation": self.log_remediation
+                "log_remediation": self.log_remediation,
+                "state_schema": self.state_schema.__name__
             }
         }
 

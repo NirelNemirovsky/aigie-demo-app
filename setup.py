@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="aigie",
-    version="0.2.0",
+    version="0.3.0",
     description="The Package that fixes your AI world with Trail Taxonomy error classification and Gemini AI remediation",
     author="AG",
     author_email="support@aigie.ai",

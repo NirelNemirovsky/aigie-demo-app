@@ -1,9 +1,10 @@
 # Aigie - AI World Fixer with Trail Taxonomy & Gemini AI
 
-A Python package that provides intelligent error handling and remediation for AI systems using Trail Taxonomy classification and Google's Gemini 2.5 Flash AI model.
+A Python package that provides intelligent error handling and remediation for AI systems using Trail Taxonomy classification and Google's Gemini 2.5 Flash AI model. **Aigie natively supports Pydantic models as the single standard for state management**, eliminating the need for multiple compatibility layers.
 
 ## 🚀 Features
 
+- **Unified Pydantic Standard**: Native support for Pydantic models as the single state management standard
 - **Trail Taxonomy Error Classification**: Comprehensive error categorization based on the Trail Taxonomy paper
 - **Gemini AI Remediation**: AI-powered error analysis and remediation suggestions using Google's Gemini 2.5 Flash
 - **Real-time Error Handling**: Intelligent error detection and resolution in real-time
@@ -90,6 +91,16 @@ print("✅ AigieStateGraph ready!")
 ```
 
 ## 🎯 Quick Start
+
+### Unified Pydantic Approach
+
+Aigie uses **Pydantic models as the single standard** for state management. This eliminates the confusion of multiple state formats and provides:
+
+- **Type Safety**: Full type checking and validation
+- **IDE Support**: Autocomplete and error detection
+- **Documentation**: Self-documenting code with field descriptions
+- **Serialization**: Built-in JSON serialization/deserialization
+- **Validation**: Automatic data validation and error messages
 
 ### Basic Usage (Seamless Integration)
 

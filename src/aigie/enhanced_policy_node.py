@@ -5,18 +5,21 @@ This module provides an enhanced PolicyNode that integrates Trail Taxonomy error
 and Gemini 2.5 Flash AI-powered remediation for real-time error handling.
 """
 
-from typing import Any, Dict, Optional, Iterable, Union, List
+from typing import Any, Dict, Optional, Iterable, Union, List, Type, TypeVar
 from langchain_core.runnables import Runnable, RunnableConfig
 from tenacity import retry, stop_after_attempt, wait_exponential
 from google.cloud import logging
 import time
 import json
 from dataclasses import asdict
+from pydantic import BaseModel
 
 from .error_taxonomy import TrailTaxonomyClassifier, ErrorAnalysis
 from .gemini_remediator import GeminiRemediator, GeminiRemediationResult, RemediationSuggestion
 
-GraphLike = Dict[str, Any]
+# Support both Pydantic models and dictionaries for backward compatibility
+GraphLike = Union[BaseModel, Dict[str, Any]]
+T = TypeVar('T', bound=BaseModel)
 
 # Configure GCP logging
 client = logging.Client()
@@ -72,7 +75,14 @@ class EnhancedPolicyNode(Runnable[GraphLike, GraphLike]):
         """Enhanced invoke with Trail Taxonomy and Gemini remediation"""
         attempt = 0
         last_exc = None
-        cur_state = {**state, "last_node": self.name}
+        
+        # Convert state to dictionary for processing
+        if isinstance(state, BaseModel):
+            cur_state = state.model_dump() if hasattr(state, 'model_dump') else state.dict()
+        else:
+            cur_state = state.copy()
+        
+        cur_state["last_node"] = self.name
         
         while attempt < self.max_attempts:
             try:
