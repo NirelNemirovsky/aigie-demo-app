@@ -38,14 +38,16 @@ class DateTimeEncoder(json.JSONEncoder):
 try:
     from google.cloud import logging as gcp_logging
     GCP_LOGGING_AVAILABLE = True
-    gcp_client = gcp_logging.Client()
-    gcp_logger = gcp_client.logger(__name__)
+    # Don't initialize client at module level - do it lazily when needed
+    gcp_client = None
+    gcp_logger = None
 except ImportError:
     GCP_LOGGING_AVAILABLE = False
+    gcp_client = None
     gcp_logger = None
 
 
-class EnhancedPolicyNodeV2(Runnable[GraphLike, GraphLike]):
+class EnhancedPolicyNode(Runnable[GraphLike, GraphLike]):
     """
     Enhanced PolicyNode V2 with advanced error handling, learning, and architectural awareness
     """
@@ -99,6 +101,24 @@ class EnhancedPolicyNodeV2(Runnable[GraphLike, GraphLike]):
         self.error_history = []
         self.remediation_history = []
         self.learning_statistics = {}
+        
+        # Lazy GCP logger initialization
+        self._gcp_logger = None
+    
+    def _get_gcp_logger(self):
+        """Lazily initialize and return GCP logger"""
+        if self._gcp_logger is None and GCP_LOGGING_AVAILABLE:
+            try:
+                if gcp_client is None:
+                    # Initialize client only when needed
+                    client = gcp_logging.Client()
+                else:
+                    client = gcp_client
+                self._gcp_logger = client.logger(__name__)
+            except Exception as e:
+                logger.warning(f"Failed to initialize GCP logger: {e}")
+                self._gcp_logger = None
+        return self._gcp_logger
     
     def _invoke_once(self, state: GraphLike, config: Optional[RunnableConfig]) -> GraphLike:
         """Execute the inner function once"""
@@ -130,7 +150,8 @@ class EnhancedPolicyNodeV2(Runnable[GraphLike, GraphLike]):
                     logger.info(f"Node '{self.name}' executed successfully on attempt {attempt + 1}")
                     
                     # GCP Logging (if available)
-                    if GCP_LOGGING_AVAILABLE and gcp_logger:
+                    gcp_logger = self._get_gcp_logger()
+                    if gcp_logger:
                         try:
                             gcp_logger.log_text(
                                 f"Node '{self.name}' executed successfully on attempt {attempt + 1}",
@@ -318,7 +339,8 @@ class EnhancedPolicyNodeV2(Runnable[GraphLike, GraphLike]):
         logger.error(f"Enhanced Trail Taxonomy Analysis: {json.dumps(taxonomy_log, indent=2, cls=DateTimeEncoder)}")
         
         # GCP Logging (if available)
-        if GCP_LOGGING_AVAILABLE and gcp_logger:
+        gcp_logger = self._get_gcp_logger()
+        if gcp_logger:
             try:
                 gcp_logger.log_text(
                     f"Enhanced Trail Taxonomy Analysis: {json.dumps(taxonomy_log, indent=2, cls=DateTimeEncoder)}",
@@ -363,7 +385,8 @@ class EnhancedPolicyNodeV2(Runnable[GraphLike, GraphLike]):
             logger.info(f"Adaptive Remediation Result: {json.dumps(adaptive_log, indent=2, cls=DateTimeEncoder)}")
             
             # GCP Logging (if available)
-            if GCP_LOGGING_AVAILABLE and gcp_logger:
+            gcp_logger = self._get_gcp_logger()
+            if gcp_logger:
                 try:
                     gcp_logger.log_text(
                         f"Adaptive Remediation Result: {json.dumps(adaptive_log, indent=2, cls=DateTimeEncoder)}",
@@ -415,7 +438,8 @@ class EnhancedPolicyNodeV2(Runnable[GraphLike, GraphLike]):
             logger.info(f"Gemini Remediation Analysis: {json.dumps(gemini_log, indent=2, cls=DateTimeEncoder)}")
             
             # GCP Logging (if available)
-            if GCP_LOGGING_AVAILABLE and gcp_logger:
+            gcp_logger = self._get_gcp_logger()
+            if gcp_logger:
                 try:
                     gcp_logger.log_text(
                         f"Gemini Remediation Analysis: {json.dumps(gemini_log, indent=2, cls=DateTimeEncoder)}",
@@ -498,7 +522,8 @@ class EnhancedPolicyNodeV2(Runnable[GraphLike, GraphLike]):
             return safe_globals.get("state", state)
             
         except Exception as e:
-            if GCP_LOGGING_AVAILABLE and gcp_logger:
+            gcp_logger = self._get_gcp_logger()
+            if gcp_logger:
                 gcp_logger.log_text(
                     f"Auto-fix application failed for node '{self.name}': {str(e)}",
                     severity="WARNING"
