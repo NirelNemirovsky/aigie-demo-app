@@ -16,6 +16,8 @@ import logging
 
 from .error_taxonomy import TrailTaxonomyClassifier, ErrorAnalysis
 from .gemini_remediator import GeminiRemediator, GeminiRemediationResult, RemediationSuggestion
+from .advanced_proactive_remediation import AdvancedProactiveRemediationEngine as ProactiveRemediationEngine
+from .advanced_proactive_remediation import DynamicFixResult as FixResult
 
 # Support both Pydantic models and dictionaries for backward compatibility
 GraphLike = Union[BaseModel, Dict[str, Any]]
@@ -51,7 +53,10 @@ class EnhancedPolicyNode(Runnable[GraphLike, GraphLike]):
         enable_gemini_remediation: bool = True,
         gemini_project_id: Optional[str] = None,
         auto_apply_fixes: bool = False,
-        log_remediation: bool = True
+        log_remediation: bool = True,
+        enable_proactive_remediation: bool = True,
+        proactive_fix_types: Optional[List[str]] = None,
+        max_proactive_attempts: int = 3
     ):
         self.inner = inner
         self.name = name
@@ -62,13 +67,25 @@ class EnhancedPolicyNode(Runnable[GraphLike, GraphLike]):
         self.enable_gemini_remediation = enable_gemini_remediation
         self.auto_apply_fixes = auto_apply_fixes
         self.log_remediation = log_remediation
+        self.enable_proactive_remediation = enable_proactive_remediation
+        self.proactive_fix_types = proactive_fix_types or [
+            'missing_field', 'type_error', 'validation_error', 'api_error', 'timeout_error'
+        ]
+        self.max_proactive_attempts = max_proactive_attempts
         
         # Initialize error classification and remediation
         self.taxonomy_classifier = TrailTaxonomyClassifier()
         self.gemini_remediator = None
+        self.proactive_remediation_engine = None
         
         if enable_gemini_remediation:
             self.gemini_remediator = GeminiRemediator(project_id=gemini_project_id)
+        
+        if enable_proactive_remediation:
+                                self.proactive_remediation_engine = ProactiveRemediationEngine(
+                        max_iterations=3,
+                        confidence_threshold=0.6
+                    )
         
         # Performance tracking
         self.error_history = []
@@ -168,7 +185,7 @@ class EnhancedPolicyNode(Runnable[GraphLike, GraphLike]):
     def _handle_error_with_remediation(self, exception: Exception, attempt: int, 
                                      state: GraphLike, config: Optional[RunnableConfig]) -> Dict[str, Any]:
         """
-        Handle error using Trail Taxonomy classification and Gemini remediation
+        Handle error using Trail Taxonomy classification, Gemini remediation, and proactive remediation
         """
         start_time = time.time()
         
@@ -185,31 +202,56 @@ class EnhancedPolicyNode(Runnable[GraphLike, GraphLike]):
                 error_analysis, node_context
             )
         
-        # Step 3: Log comprehensive error information
-        self._log_error_analysis(error_analysis, remediation_result, attempt, start_time)
-        
-        # Step 4: Prepare state updates
-        state_updates = self._prepare_state_updates(error_analysis, remediation_result, attempt)
-        
-        # Step 5: Apply automatic fixes if available and enabled
-        auto_fix_applied = False
+        # Step 3: PROACTIVE REMEDIATION (NEW)
+        proactive_fix_applied = False
+        proactive_fix_result = None
         fixed_state = state
-        if (self.auto_apply_fixes and remediation_result and 
+        
+        if (self.enable_proactive_remediation and 
+            self.proactive_remediation_engine and 
+            self.proactive_remediation_engine.can_fix_proactively(error_analysis)):
+            
+            print(f"\n🔧 PROACTIVE REMEDIATION - Attempting automatic fix...")
+            proactive_fix_result = self.proactive_remediation_engine.apply_proactive_remediation(
+                error_analysis, state, ""
+            )
+            
+            if proactive_fix_result.success:
+                proactive_fix_applied = True
+                fixed_state = proactive_fix_result.fixed_state
+                print(f"✅ PROACTIVE FIX SUCCESSFUL!")
+                print(f"   Generated Code: {proactive_fix_result.generated_code.strip()}")
+                print(f"   State Changes: {proactive_fix_result.state_changes}")
+                print(f"   Execution Time: {proactive_fix_result.execution_time:.3f}s")
+            else:
+                print(f"❌ PROACTIVE FIX FAILED: {proactive_fix_result.error_message}")
+        
+        # Step 4: Log comprehensive error information
+        self._log_error_analysis(error_analysis, remediation_result, attempt, start_time, proactive_fix_result)
+        
+        # Step 5: Prepare state updates
+        state_updates = self._prepare_state_updates(error_analysis, remediation_result, attempt, proactive_fix_result)
+        
+        # Step 6: Apply Gemini automatic fixes if available and enabled (fallback to proactive)
+        auto_fix_applied = False
+        if (not proactive_fix_applied and self.auto_apply_fixes and remediation_result and 
             remediation_result.auto_fix_available and 
             remediation_result.auto_fix_code):
             
             fixed_state = self._apply_auto_fix(state, remediation_result.auto_fix_code)
             auto_fix_applied = True
         
-        # Step 6: Track error history
-        self._track_error_history(error_analysis, remediation_result, attempt, start_time)
+        # Step 7: Track error history
+        self._track_error_history(error_analysis, remediation_result, attempt, start_time, proactive_fix_result)
         
         return {
             "state_updates": state_updates,
-            "auto_fix_applied": auto_fix_applied,
+            "auto_fix_applied": auto_fix_applied or proactive_fix_applied,
             "fixed_state": fixed_state,
             "error_analysis": error_analysis,
-            "remediation_result": remediation_result
+            "remediation_result": remediation_result,
+            "proactive_fix_applied": proactive_fix_applied,
+            "proactive_fix_result": proactive_fix_result
         }
     
     def _prepare_node_context(self, state: GraphLike, config: Optional[RunnableConfig]) -> Dict[str, Any]:
@@ -225,7 +267,8 @@ class EnhancedPolicyNode(Runnable[GraphLike, GraphLike]):
     
     def _log_error_analysis(self, error_analysis: ErrorAnalysis, 
                           remediation_result: Optional[GeminiRemediationResult], 
-                          attempt: int, start_time: float):
+                          attempt: int, start_time: float,
+                          proactive_fix_result: Optional[FixResult] = None):
         """Log comprehensive error analysis to GCP and console"""
         
         # Console output for immediate visibility
@@ -318,12 +361,48 @@ class EnhancedPolicyNode(Runnable[GraphLike, GraphLike]):
         else:
             print(f"\n⚠️  GEMINI REMEDIATION: Disabled or unavailable")
         
+        # Log proactive remediation if available
+        if proactive_fix_result:
+            proactive_log = {
+                "node": self.name,
+                "attempt": attempt,
+                "success": proactive_fix_result.success,
+                "fix_code": proactive_fix_result.fix_code,
+                "execution_time": proactive_fix_result.execution_time,
+                "state_changes": proactive_fix_result.state_changes,
+                "error_message": proactive_fix_result.error_message
+            }
+            
+            # Console output for proactive remediation
+            print(f"\n🔧 PROACTIVE REMEDIATION LOG:")
+            print(f"   Success: {proactive_fix_result.success}")
+            print(f"   Execution time: {proactive_fix_result.execution_time:.3f}s")
+            print(f"   State changes: {proactive_fix_result.state_changes}")
+            if proactive_fix_result.error_message:
+                print(f"   Error: {proactive_fix_result.error_message}")
+            
+            # Standard Python logging
+            logger.info(f"Proactive Remediation Result: {json.dumps(proactive_log, indent=2)}")
+            
+            # GCP Logging (if available)
+            if GCP_LOGGING_AVAILABLE and gcp_logger:
+                try:
+                    gcp_logger.log_text(
+                        f"Proactive Remediation Result: {json.dumps(proactive_log, indent=2)}",
+                        severity="INFO"
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to log to GCP: {e}")
+        else:
+            print(f"\n⚠️  PROACTIVE REMEDIATION: Disabled or not applicable")
+        
         print("=" * 60)
         print(f"⏱️  Total error handling time: {time.time() - start_time:.2f}s\n")
     
     def _prepare_state_updates(self, error_analysis: ErrorAnalysis, 
                              remediation_result: Optional[GeminiRemediationResult], 
-                             attempt: int) -> Dict[str, Any]:
+                             attempt: int,
+                             proactive_fix_result: Optional[FixResult] = None) -> Dict[str, Any]:
         """Prepare state updates with error analysis and remediation info"""
         updates = {
             "error_details": {
@@ -355,6 +434,15 @@ class EnhancedPolicyNode(Runnable[GraphLike, GraphLike]):
                 "execution_time": remediation_result.execution_time
             }
         
+        if proactive_fix_result:
+            updates["proactive_remediation_details"] = {
+                "success": proactive_fix_result.success,
+                "fix_code": proactive_fix_result.fix_code,
+                "execution_time": proactive_fix_result.execution_time,
+                "state_changes": proactive_fix_result.state_changes,
+                "error_message": proactive_fix_result.error_message
+            }
+        
         return updates
     
     def _apply_auto_fix(self, state: GraphLike, auto_fix_code: str) -> GraphLike:
@@ -382,7 +470,8 @@ class EnhancedPolicyNode(Runnable[GraphLike, GraphLike]):
     
     def _track_error_history(self, error_analysis: ErrorAnalysis, 
                            remediation_result: Optional[GeminiRemediationResult], 
-                           attempt: int, start_time: float):
+                           attempt: int, start_time: float,
+                           proactive_fix_result: Optional[FixResult] = None):
         """Track error history for analytics"""
         error_record = {
             "timestamp": time.time(),
@@ -405,6 +494,16 @@ class EnhancedPolicyNode(Runnable[GraphLike, GraphLike]):
                 "execution_time": remediation_result.execution_time
             }
             self.remediation_history.append(remediation_record)
+        
+        if proactive_fix_result:
+            proactive_record = {
+                "timestamp": time.time(),
+                "node": self.name,
+                "success": proactive_fix_result.success,
+                "execution_time": proactive_fix_result.execution_time,
+                "state_changes": proactive_fix_result.state_changes
+            }
+            self.remediation_history.append(proactive_record)
     
     def stream(self, state: GraphLike, config: Optional[RunnableConfig] = None) -> Iterable:
         """Enhanced streaming with error handling"""
@@ -453,8 +552,15 @@ class EnhancedPolicyNode(Runnable[GraphLike, GraphLike]):
             "remediation_stats": {
                 "total_remediations": len(self.remediation_history),
                 "auto_fix_available_count": sum(
-                    1 for r in self.remediation_history if r["auto_fix_available"]
+                    1 for r in self.remediation_history if r.get("auto_fix_available", False)
+                ),
+                "proactive_fixes_successful": sum(
+                    1 for r in self.remediation_history if r.get("success", False)
+                ),
+                "proactive_fixes_total": sum(
+                    1 for r in self.remediation_history if "success" in r
                 )
             },
-            "gemini_available": self.gemini_remediator is not None
+            "gemini_available": self.gemini_remediator is not None,
+            "proactive_remediation_available": self.proactive_remediation_engine is not None
         }

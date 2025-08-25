@@ -20,7 +20,7 @@ from .pydantic_compatible_graph import (
     create_workflow_compatible_graph
 )
 
-__version__ = "0.3.0"
+__version__ = "0.5.0"
 __all__ = [
     "PolicyNode", 
     "EnhancedPolicyNode",
