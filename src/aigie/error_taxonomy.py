@@ -1,8 +1,9 @@
 """
-Trail Taxonomy Error Classification System
+Enhanced Error Taxonomy Classification System
 
-This module implements a comprehensive error classification system based on the Trail Taxonomy paper
-for intelligent error detection and remediation in AI systems.
+This module implements an improved error classification system that can better identify
+async/await issues, architectural problems, import issues, and other complex error patterns
+that the original system was missing.
 """
 
 from typing import Dict, Any, Optional, List, Tuple
@@ -10,15 +11,18 @@ from enum import Enum
 import re
 import traceback
 from dataclasses import dataclass
+import ast
 
 
 class ErrorCategory(Enum):
-    """Error categories based on Trail Taxonomy"""
+    """Enhanced error categories based on Trail Taxonomy with architectural awareness"""
     INPUT_ERROR = "input_error"
     PROCESSING_ERROR = "processing_error"
     OUTPUT_ERROR = "output_error"
     SYSTEM_ERROR = "system_error"
     EXTERNAL_ERROR = "external_error"
+    ARCHITECTURAL_ERROR = "architectural_error"  # NEW: For async/await, imports, etc.
+    CODE_GENERATION_ERROR = "code_generation_error"  # NEW: For AI generation failures
     UNKNOWN_ERROR = "unknown_error"
 
 
@@ -32,7 +36,7 @@ class ErrorSeverity(Enum):
 
 @dataclass
 class ErrorAnalysis:
-    """Structured error analysis result"""
+    """Enhanced structured error analysis result"""
     category: ErrorCategory
     severity: ErrorSeverity
     confidence: float
@@ -40,15 +44,18 @@ class ErrorAnalysis:
     description: str
     remediation_hints: List[str]
     context: Dict[str, Any]
+    root_cause: Optional[str] = None  # NEW: Specific root cause identification
+    architectural_issue: Optional[str] = None  # NEW: For async/await, import issues
+    suggested_fix_type: Optional[str] = None  # NEW: Type of fix needed
 
 
-class TrailTaxonomyClassifier:
+class EnhancedTrailTaxonomyClassifier:
     """
-    Implements Trail Taxonomy error classification for intelligent error handling
+    Enhanced Trail Taxonomy error classification with architectural awareness
     """
     
     def __init__(self):
-        # Error patterns and keywords for classification
+        # Enhanced error patterns and keywords for classification
         self.error_patterns = {
             ErrorCategory.INPUT_ERROR: {
                 "keywords": [
@@ -138,10 +145,47 @@ class TrailTaxonomyClassifier:
                     r"authentication.*failed",
                     r"service.*unavailable"
                 ]
+            },
+            # NEW: Architectural error patterns
+            ErrorCategory.ARCHITECTURAL_ERROR: {
+                "keywords": [
+                    "coroutine", "async", "await", "never awaited", "event loop",
+                    "import", "module", "name.*not.*defined", "attribute",
+                    "method", "function", "class", "inheritance", "interface"
+                ],
+                "exceptions": [
+                    "RuntimeWarning", "ImportError", "ModuleNotFoundError",
+                    "NameError", "AttributeError", "TypeError"
+                ],
+                "patterns": [
+                    r"coroutine.*never.*awaited",
+                    r"name.*not.*defined",
+                    r"module.*not.*found",
+                    r"cannot.*import",
+                    r"coroutine.*object.*not.*mapping",
+                    r"async.*function.*called.*without.*await"
+                ]
+            },
+            # NEW: Code generation error patterns
+            ErrorCategory.CODE_GENERATION_ERROR: {
+                "keywords": [
+                    "generation", "failed", "ai", "model", "response",
+                    "parse", "format", "invalid", "malformed", "timeout"
+                ],
+                "exceptions": [
+                    "ValueError", "TypeError", "RuntimeError", "TimeoutError"
+                ],
+                "patterns": [
+                    r"generation.*failed",
+                    r"ai.*failed",
+                    r"model.*error",
+                    r"response.*invalid",
+                    r"parse.*failed"
+                ]
             }
         }
         
-        # Severity assessment patterns
+        # Enhanced severity assessment patterns
         self.severity_patterns = {
             ErrorSeverity.CRITICAL: [
                 "fatal", "critical", "emergency", "panic", "abort",
@@ -149,26 +193,64 @@ class TrailTaxonomyClassifier:
             ],
             ErrorSeverity.HIGH: [
                 "error", "failed", "exception", "crash", "break",
-                "invalid", "corrupted", "malformed"
+                "invalid", "corrupted", "malformed", "coroutine.*never.*awaited"
             ],
             ErrorSeverity.MEDIUM: [
-                "warning", "deprecated", "timeout", "retry", "fallback"
+                "warning", "deprecated", "timeout", "retry", "fallback",
+                "import.*error", "name.*not.*defined"
             ],
             ErrorSeverity.LOW: [
                 "info", "debug", "notice", "suggestion", "hint"
             ]
         }
+        
+        # NEW: Specific architectural issue patterns
+        self.architectural_patterns = {
+            "async_await": {
+                "patterns": [
+                    r"coroutine.*never.*awaited",
+                    r"coroutine.*object.*not.*mapping",
+                    r"async.*function.*called.*without.*await",
+                    r"await.*outside.*async.*function"
+                ],
+                "keywords": ["coroutine", "async", "await", "never awaited"],
+                "root_cause": "Async/await pattern issue",
+                "suggested_fix": "architectural_fix"
+            },
+            "import_issue": {
+                "patterns": [
+                    r"name.*not.*defined",
+                    r"module.*not.*found",
+                    r"cannot.*import",
+                    r"import.*error"
+                ],
+                "keywords": ["import", "module", "name", "defined"],
+                "root_cause": "Missing import or module issue",
+                "suggested_fix": "import_fix"
+            },
+            "code_generation": {
+                "patterns": [
+                    r"generation.*failed",
+                    r"ai.*failed",
+                    r"model.*error",
+                    r"response.*invalid"
+                ],
+                "keywords": ["generation", "failed", "ai", "model"],
+                "root_cause": "AI code generation failure",
+                "suggested_fix": "fallback_generation"
+            }
+        }
 
     def classify_error(self, exception: Exception, context: Dict[str, Any] = None) -> ErrorAnalysis:
         """
-        Classify an error using Trail Taxonomy approach
+        Enhanced error classification with architectural awareness
         
         Args:
             exception: The exception that occurred
             context: Additional context about the error (state, node info, etc.)
             
         Returns:
-            ErrorAnalysis object with classification results
+            ErrorAnalysis object with enhanced classification results
         """
         if context is None:
             context = {}
@@ -177,8 +259,11 @@ class TrailTaxonomyClassifier:
         error_type = type(exception).__name__
         traceback_str = traceback.format_exc()
         
+        # NEW: Check for architectural issues first
+        architectural_issue = self._detect_architectural_issue(error_message, error_type, traceback_str)
+        
         # Analyze error using multiple classification methods
-        category_scores = self._calculate_category_scores(error_message, error_type, traceback_str)
+        category_scores = self._calculate_category_scores(error_message, error_type, traceback_str, architectural_issue)
         severity = self._assess_severity(error_message, error_type, context)
         
         # Get the most likely category
@@ -191,8 +276,12 @@ class TrailTaxonomyClassifier:
         # Generate description
         description = self._generate_description(best_category, error_type, error_message)
         
+        # NEW: Identify root cause and suggested fix type
+        root_cause = self._identify_root_cause(error_message, architectural_issue)
+        suggested_fix_type = self._suggest_fix_type(best_category, architectural_issue)
+        
         # Generate remediation hints
-        remediation_hints = self._generate_remediation_hints(best_category, error_message, context)
+        remediation_hints = self._generate_remediation_hints(best_category, error_message, context, architectural_issue)
         
         return ErrorAnalysis(
             category=best_category,
@@ -201,12 +290,51 @@ class TrailTaxonomyClassifier:
             keywords=keywords,
             description=description,
             remediation_hints=remediation_hints,
-            context=context
+            context=context,
+            root_cause=root_cause,
+            architectural_issue=architectural_issue,
+            suggested_fix_type=suggested_fix_type
         )
     
-    def _calculate_category_scores(self, error_message: str, error_type: str, traceback_str: str) -> Dict[ErrorCategory, float]:
-        """Calculate confidence scores for each error category"""
+    def _detect_architectural_issue(self, error_message: str, error_type: str, traceback_str: str) -> Optional[str]:
+        """Detect specific architectural issues like async/await, imports, etc."""
+        error_lower = error_message.lower()
+        traceback_lower = traceback_str.lower()
+        
+        # Check for async/await issues
+        if any(re.search(pattern, error_lower) for pattern in self.architectural_patterns["async_await"]["patterns"]):
+            return "async_await"
+        
+        # Check for import issues
+        if any(re.search(pattern, error_lower) for pattern in self.architectural_patterns["import_issue"]["patterns"]):
+            return "import_issue"
+        
+        # Check for code generation issues
+        if any(re.search(pattern, error_lower) for pattern in self.architectural_patterns["code_generation"]["patterns"]):
+            return "code_generation"
+        
+        # Check traceback for additional clues
+        if "coroutine" in traceback_lower and "never awaited" in traceback_lower:
+            return "async_await"
+        
+        if "name" in traceback_lower and "not defined" in traceback_lower:
+            return "import_issue"
+        
+        return None
+    
+    def _calculate_category_scores(self, error_message: str, error_type: str, traceback_str: str, 
+                                 architectural_issue: Optional[str] = None) -> Dict[ErrorCategory, float]:
+        """Calculate confidence scores for each error category with architectural awareness"""
         scores = {category: 0.0 for category in ErrorCategory}
+        
+        # Boost architectural category if architectural issue detected
+        if architectural_issue:
+            if architectural_issue == "async_await":
+                scores[ErrorCategory.ARCHITECTURAL_ERROR] += 0.8
+            elif architectural_issue == "import_issue":
+                scores[ErrorCategory.ARCHITECTURAL_ERROR] += 0.8
+            elif architectural_issue == "code_generation":
+                scores[ErrorCategory.CODE_GENERATION_ERROR] += 0.8
         
         # Check exception type matches
         for category, patterns in self.error_patterns.items():
@@ -230,6 +358,43 @@ class TrailTaxonomyClassifier:
         
         return scores
     
+    def _identify_root_cause(self, error_message: str, architectural_issue: Optional[str] = None) -> Optional[str]:
+        """Identify specific root cause of the error"""
+        if architectural_issue:
+            return self.architectural_patterns[architectural_issue]["root_cause"]
+        
+        # Fallback root cause identification
+        error_lower = error_message.lower()
+        
+        if "coroutine" in error_lower and "never awaited" in error_lower:
+            return "Async function called without await"
+        elif "name" in error_lower and "not defined" in error_lower:
+            return "Missing import or undefined variable"
+        elif "module" in error_lower and "not found" in error_lower:
+            return "Missing module or package"
+        elif "generation" in error_lower and "failed" in error_lower:
+            return "AI code generation failure"
+        
+        return None
+    
+    def _suggest_fix_type(self, category: ErrorCategory, architectural_issue: Optional[str] = None) -> Optional[str]:
+        """Suggest the type of fix needed"""
+        if architectural_issue:
+            return self.architectural_patterns[architectural_issue]["suggested_fix"]
+        
+        # Category-based fix suggestions
+        fix_types = {
+            ErrorCategory.ARCHITECTURAL_ERROR: "architectural_fix",
+            ErrorCategory.CODE_GENERATION_ERROR: "fallback_generation",
+            ErrorCategory.INPUT_ERROR: "data_fix",
+            ErrorCategory.PROCESSING_ERROR: "logic_fix",
+            ErrorCategory.OUTPUT_ERROR: "format_fix",
+            ErrorCategory.SYSTEM_ERROR: "system_fix",
+            ErrorCategory.EXTERNAL_ERROR: "retry_fix"
+        }
+        
+        return fix_types.get(category)
+    
     def _assess_severity(self, error_message: str, error_type: str, context: Dict[str, Any]) -> ErrorSeverity:
         """Assess error severity based on patterns and context"""
         error_lower = error_message.lower()
@@ -239,7 +404,7 @@ class TrailTaxonomyClassifier:
             if re.search(pattern, error_lower):
                 return ErrorSeverity.CRITICAL
         
-        # Check for high severity patterns
+        # Check for high severity patterns (including architectural issues)
         for pattern in self.severity_patterns[ErrorSeverity.HIGH]:
             if re.search(pattern, error_lower):
                 return ErrorSeverity.HIGH
@@ -271,14 +436,19 @@ class TrailTaxonomyClassifier:
             ErrorCategory.OUTPUT_ERROR: f"Output formatting error ({error_type}): {error_message}",
             ErrorCategory.SYSTEM_ERROR: f"System/infrastructure error ({error_type}): {error_message}",
             ErrorCategory.EXTERNAL_ERROR: f"External service error ({error_type}): {error_message}",
+            ErrorCategory.ARCHITECTURAL_ERROR: f"Architectural/code structure error ({error_type}): {error_message}",
+            ErrorCategory.CODE_GENERATION_ERROR: f"AI code generation error ({error_type}): {error_message}",
             ErrorCategory.UNKNOWN_ERROR: f"Unknown error type ({error_type}): {error_message}"
         }
         
         return descriptions.get(category, f"Error ({error_type}): {error_message}")
     
-    def _generate_remediation_hints(self, category: ErrorCategory, error_message: str, context: Dict[str, Any]) -> List[str]:
-        """Generate remediation hints based on error category"""
-        hints = {
+    def _generate_remediation_hints(self, category: ErrorCategory, error_message: str, 
+                                  context: Dict[str, Any], architectural_issue: Optional[str] = None) -> List[str]:
+        """Generate remediation hints based on error category and architectural issues"""
+        
+        # Base hints by category
+        base_hints = {
             ErrorCategory.INPUT_ERROR: [
                 "Validate input data before processing",
                 "Check for required fields and data types",
@@ -309,6 +479,18 @@ class TrailTaxonomyClassifier:
                 "Check API rate limits and quotas",
                 "Verify authentication and authorization"
             ],
+            ErrorCategory.ARCHITECTURAL_ERROR: [
+                "Review async/await patterns and ensure proper usage",
+                "Check for missing imports and dependencies",
+                "Verify function signatures and method calls",
+                "Ensure proper code structure and organization"
+            ],
+            ErrorCategory.CODE_GENERATION_ERROR: [
+                "Implement fallback code generation mechanisms",
+                "Add retry logic for AI model calls",
+                "Provide alternative code templates",
+                "Implement manual code generation as backup"
+            ],
             ErrorCategory.UNKNOWN_ERROR: [
                 "Add comprehensive logging for debugging",
                 "Implement graceful error handling",
@@ -317,4 +499,29 @@ class TrailTaxonomyClassifier:
             ]
         }
         
-        return hints.get(category, ["Implement general error handling"])
+        hints = base_hints.get(category, ["Implement general error handling"])
+        
+        # Add architectural-specific hints
+        if architectural_issue == "async_await":
+            hints.extend([
+                "Ensure async functions are called with await",
+                "Check for missing await keywords",
+                "Verify event loop is properly configured",
+                "Consider using asyncio.run() for top-level async calls"
+            ])
+        elif architectural_issue == "import_issue":
+            hints.extend([
+                "Add missing import statements",
+                "Check module installation and dependencies",
+                "Verify import paths and module names",
+                "Consider using try/except for optional imports"
+            ])
+        elif architectural_issue == "code_generation":
+            hints.extend([
+                "Implement fallback code generation",
+                "Add retry mechanisms for AI calls",
+                "Provide template-based code generation",
+                "Consider manual code generation as backup"
+            ])
+        
+        return hints[:6]  # Limit to top 6 hints
