@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 import uuid
 
 # Import the enhanced Aigie components
-from aigie import AigieStateGraph, WorkflowStateConverter
+from aigie import AigieStateGraph
 
 
 # Define workflow step enum
@@ -183,16 +183,16 @@ def follow_up_scheduled_node(state: WorkflowState) -> WorkflowState:
     return state
 
 
-def demonstrate_conversion():
-    """Demonstrate the conversion process that happens internally"""
-    print("\n🔄 DEMONSTRATING CONVERSION PROCESS")
+def demonstrate_native_pydantic():
+    """Demonstrate that Pydantic models work natively with LangGraph"""
+    print("\n🔄 DEMONSTRATING NATIVE PYDANTIC SUPPORT")
     print("=" * 50)
     
     # Create a sample workflow state
     ticket = CustomerTicket(
         customer_id="aigie-0.3.0-test",
         subject="Testing Aigie Version 0.3.0",
-        message="This is a test ticket to verify the conversion works properly.",
+        message="This is a test ticket to verify native Pydantic support.",
         email="v0.3.0@aigie.com"
     )
     
@@ -202,37 +202,18 @@ def demonstrate_conversion():
         ticket=ticket
     )
     
-    print("📋 Original Pydantic Model:")
+    print("📋 Pydantic Model:")
     print(f"   Type: {type(initial_state)}")
     print(f"   current_step: {initial_state.current_step} (type: {type(initial_state.current_step)})")
     print(f"   ticket: {type(initial_state.ticket)}")
     print(f"   workflow_started_at: {type(initial_state.workflow_started_at)}")
     
-    # Convert to Aigie's expected dictionary format
-    print("\n🔄 Converting to Aigie Dictionary Format:")
-    state_dict = WorkflowStateConverter.workflow_state_to_dict(initial_state)
-    
-    print("📋 Converted Dictionary:")
-    print(f"   Type: {type(state_dict)}")
-    print(f"   current_step: {state_dict['current_step']} (type: {type(state_dict['current_step'])})")
-    print(f"   ticket: {type(state_dict['ticket'])}")
-    print(f"   workflow_started_at: {type(state_dict['workflow_started_at'])}")
-    
-    # Convert back to Pydantic model
-    print("\n🔄 Converting Back to Pydantic Model:")
-    converted_back = WorkflowStateConverter.dict_to_workflow_state(state_dict, WorkflowState)
-    
-    print("📋 Converted Back:")
-    print(f"   Type: {type(converted_back)}")
-    print(f"   current_step: {converted_back.current_step} (type: {type(converted_back.current_step)})")
-    print(f"   ticket: {type(converted_back.ticket)}")
-    print(f"   workflow_started_at: {type(converted_back.workflow_started_at)}")
-    
-    # Verify the conversion is correct
-    print("\n✅ Verification:")
-    print(f"   Enum preserved: {initial_state.current_step == converted_back.current_step}")
-    print(f"   Datetime preserved: {initial_state.workflow_started_at == converted_back.workflow_started_at}")
-    print(f"   Nested model preserved: {initial_state.ticket.id == converted_back.ticket.id}")
+    print("\n✅ No conversion needed!")
+    print("   • LangGraph supports Pydantic models natively")
+    print("   • Enum values are preserved as-is")
+    print("   • Datetime objects work directly")
+    print("   • Nested Pydantic models are supported")
+    print("   • No conversion overhead or errors")
 
 
 def main():
@@ -243,8 +224,8 @@ def main():
     print("🔧 Seamless integration with Aigie's dictionary-based system")
     print()
     
-    # Demonstrate the conversion process
-    demonstrate_conversion()
+    # Demonstrate native Pydantic support
+    demonstrate_native_pydantic()
     
     # Create a sample ticket
     ticket = CustomerTicket(
@@ -329,16 +310,16 @@ def main():
     print("\n🎉 Enhanced example completed successfully!")
     print("\n💡 Key Benefits of This Approach:")
     print("   • Work with Pydantic models in your code")
-    print("   • Automatic conversion to Aigie's dictionary format")
+    print("   • Native Pydantic support with LangGraph")
     print("   • Type safety and validation throughout")
     print("   • Seamless integration with existing LangGraph workflows")
     print("   • Enhanced error handling with Gemini AI")
-    print("   • No manual conversion needed")
+    print("   • No conversion needed")
     print("\n🔧 What Happens Internally:")
     print("   • Your code works with Pydantic models")
-    print("   • Aigie converts to dictionaries for internal processing")
-    print("   • Results are converted back to Pydantic models")
-    print("   • All conversions are handled automatically")
+    print("   • LangGraph handles Pydantic models natively")
+    print("   • No conversion overhead or errors")
+    print("   • Direct Pydantic model support")
 
 
 if __name__ == "__main__":
