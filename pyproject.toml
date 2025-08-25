@@ -5,8 +5,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aigie"
-version = "0.1.0"
-description = "The Package that fixes you AI world"
+version = "0.2.0"
+description = "The Package that fixes your AI world with Trail Taxonomy error classification and Gemini AI remediation"
 authors = [
     {name = "AG", email = "support@aigie.ai"}
 ]
@@ -17,7 +17,21 @@ dependencies = [
     "tenacity",
     "langchain-core", 
     "langgraph",
-    "google-cloud-logging"
+    "google-cloud-logging",
+    "google-cloud-aiplatform"
+]
+keywords = ["ai", "error-handling", "langgraph", "gemini", "trail-taxonomy", "remediation"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 
 [project.urls]

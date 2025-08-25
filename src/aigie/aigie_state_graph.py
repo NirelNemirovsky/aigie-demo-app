@@ -1,18 +1,33 @@
 from langgraph.graph import StateGraph
-from .aigie_node import PolicyNode
+from .enhanced_policy_node import EnhancedPolicyNode
 from typing import Any, Dict, Optional, TypedDict, List
 
 class AigieStateGraph(StateGraph):
     """
-    A wrapper around the StateGraph class to extend or modify its functionality.
+    Enhanced AigieStateGraph with Trail Taxonomy error classification and Gemini AI remediation.
+    
+    This wrapper extends LangGraph's StateGraph with intelligent error handling that:
+    1. Classifies errors using Trail Taxonomy approach
+    2. Provides AI-powered remediation suggestions using Gemini 2.5 Flash
+    3. Offers automatic error fixing capabilities
+    4. Maintains comprehensive error analytics and logging
     """
 
-    def __init__(self, state_schema: Optional[type] = None):
+    def __init__(self, 
+                 state_schema: Optional[type] = None,
+                 enable_gemini_remediation: bool = True,
+                 gemini_project_id: Optional[str] = None,
+                 auto_apply_fixes: bool = False,
+                 log_remediation: bool = True):
         """
-        Initialize the AigieStateGraph with an optional state schema.
+        Initialize the AigieStateGraph with enhanced error handling capabilities.
         
         Args:
             state_schema: Optional schema type for the state. If None, uses a default schema.
+            enable_gemini_remediation: Whether to enable Gemini AI-powered error remediation
+            gemini_project_id: GCP project ID for Gemini (if None, will auto-detect)
+            auto_apply_fixes: Whether to automatically apply AI-suggested fixes
+            log_remediation: Whether to log remediation analysis to GCP
         """
         if state_schema is None:
             # Use a simple TypedDict schema that's compatible with langgraph
@@ -23,22 +38,159 @@ class AigieStateGraph(StateGraph):
             state_schema = DefaultState
         
         super().__init__(state_schema)
+        
+        # Store configuration for enhanced error handling
+        self.enable_gemini_remediation = enable_gemini_remediation
+        self.gemini_project_id = gemini_project_id
+        self.auto_apply_fixes = auto_apply_fixes
+        self.log_remediation = log_remediation
+        
+        # Track nodes for analytics
+        self.node_analytics = {}
 
-    def add_node(self, node_id: str, node_data=None):
+    def add_node(self, node_id: str, node_data=None, **node_config):
         """
-        Overrides the add_node method to wrap the node with PolicyNode before adding it.
+        Enhanced add_node method that wraps nodes with intelligent error handling.
         
         Args:
             node_id: The identifier for the node
-            node_data: The function or runnable to wrap with PolicyNode
+            node_data: The function or runnable to wrap with EnhancedPolicyNode
+            **node_config: Additional configuration for the EnhancedPolicyNode
         """
         if node_data is not None:
-            # Wrap the node with PolicyNode
-            wrapped_node = PolicyNode(inner=node_data, name=node_id)
+            # Extract enhanced policy node specific config
+            enhanced_config = {
+                "enable_gemini_remediation": node_config.get("enable_gemini_remediation", self.enable_gemini_remediation),
+                "gemini_project_id": node_config.get("gemini_project_id", self.gemini_project_id),
+                "auto_apply_fixes": node_config.get("auto_apply_fixes", self.auto_apply_fixes),
+                "log_remediation": node_config.get("log_remediation", self.log_remediation),
+                "max_attempts": node_config.get("max_attempts", 3),
+                "fallback": node_config.get("fallback"),
+                "tweak_input": node_config.get("tweak_input"),
+                "on_error": node_config.get("on_error")
+            }
+            
+            # Wrap the node with EnhancedPolicyNode
+            wrapped_node = EnhancedPolicyNode(
+                inner=node_data, 
+                name=node_id,
+                **enhanced_config
+            )
+            
             # Call the original add_node method with the wrapped node
             super().add_node(node_id, wrapped_node)
-            print(f"Node {node_id} wrapped with PolicyNode and added successfully.")
+            
+            # Initialize analytics tracking for this node
+            self.node_analytics[node_id] = {
+                "node_type": type(node_data).__name__,
+                "enhanced_config": enhanced_config,
+                "creation_time": time.time()
+            }
+            
+            print(f"✅ Node '{node_id}' wrapped with EnhancedPolicyNode and added successfully.")
+            print(f"   - Gemini remediation: {enhanced_config['enable_gemini_remediation']}")
+            print(f"   - Auto-apply fixes: {enhanced_config['auto_apply_fixes']}")
+            print(f"   - Max attempts: {enhanced_config['max_attempts']}")
         else:
             # If no node_data, just add the node_id (for conditional nodes)
             super().add_node(node_id, node_data)
-            print(f"Node {node_id} added successfully.")
+            print(f"✅ Conditional node '{node_id}' added successfully.")
+
+    def get_node_analytics(self, node_id: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Get error analytics for nodes.
+        
+        Args:
+            node_id: Specific node ID to get analytics for. If None, returns all nodes.
+            
+        Returns:
+            Dictionary containing error analytics and statistics
+        """
+        if node_id:
+            if node_id not in self.nodes:
+                return {"error": f"Node '{node_id}' not found"}
+            
+            node = self.nodes[node_id]
+            if hasattr(node, 'get_error_analytics'):
+                return node.get_error_analytics()
+            else:
+                return {"error": f"Node '{node_id}' does not support analytics"}
+        
+        # Return analytics for all nodes
+        all_analytics = {}
+        for nid, node in self.nodes.items():
+            if hasattr(node, 'get_error_analytics'):
+                all_analytics[nid] = node.get_error_analytics()
+            else:
+                all_analytics[nid] = {"error": "Node does not support analytics"}
+        
+        return all_analytics
+
+    def get_graph_analytics(self) -> Dict[str, Any]:
+        """
+        Get comprehensive analytics for the entire graph.
+        
+        Returns:
+            Dictionary containing graph-wide error analytics and statistics
+        """
+        node_analytics = self.get_node_analytics()
+        
+        # Aggregate statistics
+        total_errors = 0
+        total_remediations = 0
+        error_categories = {}
+        error_severities = {}
+        nodes_with_errors = 0
+        
+        for node_id, analytics in node_analytics.items():
+            if "error" in analytics:
+                continue  # Skip nodes without analytics
+                
+            if "total_errors" in analytics:
+                total_errors += analytics["total_errors"]
+                nodes_with_errors += 1
+                
+                # Aggregate categories
+                for category, count in analytics.get("error_categories", {}).items():
+                    error_categories[category] = error_categories.get(category, 0) + count
+                
+                # Aggregate severities
+                for severity, count in analytics.get("error_severities", {}).items():
+                    error_severities[severity] = error_severities.get(severity, 0) + count
+                
+                # Aggregate remediation stats
+                remediation_stats = analytics.get("remediation_stats", {})
+                total_remediations += remediation_stats.get("total_remediations", 0)
+        
+        return {
+            "graph_summary": {
+                "total_nodes": len(self.nodes),
+                "nodes_with_errors": nodes_with_errors,
+                "total_errors": total_errors,
+                "total_remediations": total_remediations
+            },
+            "error_distribution": {
+                "categories": error_categories,
+                "severities": error_severities
+            },
+            "node_analytics": node_analytics,
+            "configuration": {
+                "enable_gemini_remediation": self.enable_gemini_remediation,
+                "auto_apply_fixes": self.auto_apply_fixes,
+                "log_remediation": self.log_remediation
+            }
+        }
+
+    def clear_analytics(self):
+        """Clear analytics data for all nodes"""
+        for node_id, node in self.nodes.items():
+            if hasattr(node, 'error_history'):
+                node.error_history.clear()
+            if hasattr(node, 'remediation_history'):
+                node.remediation_history.clear()
+        
+        self.node_analytics.clear()
+        print("✅ Analytics data cleared for all nodes")
+
+# Import time module for timestamps
+import time

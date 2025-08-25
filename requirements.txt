@@ -3,3 +3,4 @@ tenacity
 langchain-core
 langgraph
 google-cloud-logging
+google-cloud-aiplatform
