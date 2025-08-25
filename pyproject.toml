@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aigie"
-version = "0.3.1"
+version = "0.3.2"
 description = "The Package that fixes your AI world with Trail Taxonomy error classification and Gemini AI remediation"
 authors = [
     {name = "AG", email = "support@aigie.ai"}

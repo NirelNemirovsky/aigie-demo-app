@@ -8,11 +8,11 @@ and Gemini 2.5 Flash AI-powered remediation for real-time error handling.
 from typing import Any, Dict, Optional, Iterable, Union, List, Type, TypeVar
 from langchain_core.runnables import Runnable, RunnableConfig
 from tenacity import retry, stop_after_attempt, wait_exponential
-from google.cloud import logging
 import time
 import json
 from dataclasses import asdict
 from pydantic import BaseModel
+import logging
 
 from .error_taxonomy import TrailTaxonomyClassifier, ErrorAnalysis
 from .gemini_remediator import GeminiRemediator, GeminiRemediationResult, RemediationSuggestion
@@ -21,9 +21,18 @@ from .gemini_remediator import GeminiRemediator, GeminiRemediationResult, Remedi
 GraphLike = Union[BaseModel, Dict[str, Any]]
 T = TypeVar('T', bound=BaseModel)
 
-# Configure GCP logging
-client = logging.Client()
-gcp_logger = client.logger(__name__)
+# Configure logging
+logger = logging.getLogger(__name__)
+
+# Try to import GCP logging, but don't fail if not available
+try:
+    from google.cloud import logging as gcp_logging
+    GCP_LOGGING_AVAILABLE = True
+    gcp_client = gcp_logging.Client()
+    gcp_logger = gcp_client.logger(__name__)
+except ImportError:
+    GCP_LOGGING_AVAILABLE = False
+    gcp_logger = None
 
 
 class EnhancedPolicyNode(Runnable[GraphLike, GraphLike]):
@@ -92,15 +101,23 @@ class EnhancedPolicyNode(Runnable[GraphLike, GraphLike]):
                 
                 # Log successful execution
                 if self.log_remediation:
-                    gcp_logger.log_text(
-                        f"Node '{self.name}' executed successfully on attempt {attempt + 1}",
-                        severity="INFO"
-                    )
+                    logger.info(f"Node '{self.name}' executed successfully on attempt {attempt + 1}")
+                    
+                    # GCP Logging (if available)
+                    if GCP_LOGGING_AVAILABLE and gcp_logger:
+                        try:
+                            gcp_logger.log_text(
+                                f"Node '{self.name}' executed successfully on attempt {attempt + 1}",
+                                severity="INFO"
+                            )
+                        except Exception as e:
+                            logger.warning(f"Failed to log to GCP: {e}")
                 
                 return out
                 
             except Exception as e:
-                print(f"Attempt {attempt + 1} failed in node '{self.name}': {str(e)}")
+                print(f"\n❌ Attempt {attempt + 1} failed in node '{self.name}': {str(e)}")
+                print(f"🚀 Starting Aigie error handling and remediation...")
                 last_exc = e
                 attempt += 1
                 
@@ -112,6 +129,7 @@ class EnhancedPolicyNode(Runnable[GraphLike, GraphLike]):
                 
                 # Apply automatic fixes if enabled
                 if self.auto_apply_fixes and error_result.get("auto_fix_applied"):
+                    print(f"🔧 Auto-fix applied! Retrying with fixed state...")
                     cur_state = error_result["fixed_state"]
                     continue
                 
@@ -124,6 +142,7 @@ class EnhancedPolicyNode(Runnable[GraphLike, GraphLike]):
                     cur_state = self.tweak_input(cur_state, e, attempt)
         
         # All attempts exhausted - try fallback
+        print(f"\n⚠️  All {self.max_attempts} attempts exhausted for node '{self.name}'")
         if self.fallback is not None:
             try:
                 if hasattr(self.fallback, "invoke"):
@@ -207,7 +226,11 @@ class EnhancedPolicyNode(Runnable[GraphLike, GraphLike]):
     def _log_error_analysis(self, error_analysis: ErrorAnalysis, 
                           remediation_result: Optional[GeminiRemediationResult], 
                           attempt: int, start_time: float):
-        """Log comprehensive error analysis to GCP"""
+        """Log comprehensive error analysis to GCP and console"""
+        
+        # Console output for immediate visibility
+        print(f"\n🚨 AIGIE ERROR HANDLING - Node: {self.name} (Attempt {attempt})")
+        print("=" * 60)
         
         # Log Trail Taxonomy analysis
         taxonomy_log = {
@@ -221,10 +244,27 @@ class EnhancedPolicyNode(Runnable[GraphLike, GraphLike]):
             "remediation_hints": error_analysis.remediation_hints
         }
         
-        gcp_logger.log_text(
-            f"Trail Taxonomy Analysis: {json.dumps(taxonomy_log, indent=2)}",
-            severity="ERROR"
-        )
+        # Console output for Trail Taxonomy
+        print(f"🔍 TRAIL TAXONOMY ANALYSIS:")
+        print(f"   Category: {error_analysis.category.value.upper()}")
+        print(f"   Severity: {error_analysis.severity.value.upper()}")
+        print(f"   Confidence: {error_analysis.confidence:.2f}")
+        print(f"   Description: {error_analysis.description}")
+        print(f"   Keywords: {', '.join(error_analysis.keywords)}")
+        print(f"   Hints: {', '.join(error_analysis.remediation_hints)}")
+        
+        # Standard Python logging
+        logger.error(f"Trail Taxonomy Analysis: {json.dumps(taxonomy_log, indent=2)}")
+        
+        # GCP Logging (if available)
+        if GCP_LOGGING_AVAILABLE and gcp_logger:
+            try:
+                gcp_logger.log_text(
+                    f"Trail Taxonomy Analysis: {json.dumps(taxonomy_log, indent=2)}",
+                    severity="ERROR"
+                )
+            except Exception as e:
+                logger.warning(f"Failed to log to GCP: {e}")
         
         # Log Gemini remediation if available
         if remediation_result:
@@ -246,10 +286,40 @@ class EnhancedPolicyNode(Runnable[GraphLike, GraphLike]):
                 ]
             }
             
-            gcp_logger.log_text(
-                f"Gemini Remediation Analysis: {json.dumps(remediation_log, indent=2)}",
-                severity="INFO"
-            )
+            # Console output for Gemini remediation
+            print(f"\n🤖 GEMINI AI REMEDIATION:")
+            print(f"   Suggestions: {len(remediation_result.suggestions)}")
+            print(f"   Auto-fix available: {remediation_result.auto_fix_available}")
+            print(f"   Execution time: {remediation_result.execution_time:.2f}s")
+            print(f"   Reasoning: {remediation_result.reasoning}")
+            
+            if remediation_result.suggestions:
+                print(f"\n💡 SUGGESTIONS:")
+                for i, sugg in enumerate(remediation_result.suggestions, 1):
+                    print(f"   {i}. {sugg.action}")
+                    print(f"      Confidence: {sugg.confidence:.2f}")
+                    print(f"      Priority: {sugg.priority}")
+                    print(f"      Effort: {sugg.estimated_effort}")
+                    if sugg.code_example:
+                        print(f"      Code: {sugg.code_example}")
+            
+            # Standard Python logging
+            logger.info(f"Gemini Remediation Analysis: {json.dumps(remediation_log, indent=2)}")
+            
+            # GCP Logging (if available)
+            if GCP_LOGGING_AVAILABLE and gcp_logger:
+                try:
+                    gcp_logger.log_text(
+                        f"Gemini Remediation Analysis: {json.dumps(remediation_log, indent=2)}",
+                        severity="INFO"
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to log to GCP: {e}")
+        else:
+            print(f"\n⚠️  GEMINI REMEDIATION: Disabled or unavailable")
+        
+        print("=" * 60)
+        print(f"⏱️  Total error handling time: {time.time() - start_time:.2f}s\n")
     
     def _prepare_state_updates(self, error_analysis: ErrorAnalysis, 
                              remediation_result: Optional[GeminiRemediationResult], 
