@@ -23,12 +23,7 @@ from .advanced_proactive_remediation import (
     AdaptiveRemediationEngine,
     EnhancedRemediationResult,
     FixStrategy,
-    FixAttempt,
-    AdvancedProactiveRemediationEngine,
-    CodeActAgent,
-    DynamicFixResult,
-    AgentThought,
-    AgentAction
+    FixAttempt
 )
 from .ai_code_generator import (
     AICodeGenerator,
@@ -36,7 +31,7 @@ from .ai_code_generator import (
     AICodeGenerationResponse
 )
 
-__version__ = "0.5.2"
+__version__ = "0.5.4"
 __all__ = [
     "PolicyNode", 
     "EnhancedPolicyNode",
@@ -66,11 +61,6 @@ __all__ = [
     "EnhancedRemediationResult",
     "FixStrategy",
     "FixAttempt",
-    "AdvancedProactiveRemediationEngine",
-    "CodeActAgent",
-    "DynamicFixResult",
-    "AgentThought",
-    "AgentAction",
     # AI code generator exports
     "AICodeGenerator",
     "AICodeGenerationRequest",
