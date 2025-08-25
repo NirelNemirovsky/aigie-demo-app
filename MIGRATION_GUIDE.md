@@ -1,240 +1,210 @@
-# Migration Guide: Unified Pydantic Standard
+# Aigie Migration Guide
 
-## 🎯 Overview
+This guide helps you migrate from previous versions of Aigie to the latest version with enhanced error handling and native Pydantic model support.
 
-Aigie 0.3.0 introduces a **unified Pydantic standard** for state management, eliminating the need for multiple compatibility layers and simplifying the codebase.
+## 🎉 **GOOD NEWS: Aigie Now Uses Pydantic Models Natively!**
 
-## 🚀 What Changed
+### **The Solution**
 
-### Before (Multiple Standards)
+Aigie now properly uses Pydantic models with LangGraph, which supports them natively. No conversion is needed!
+
 ```python
-# ❌ Old approach with multiple formats
-from aigie import AigieStateGraph, PydanticCompatibleAigieGraph, StateAdapter
-
-# Dictionary-based approach
-graph = AigieStateGraph()  # Uses TypedDict internally
-
-# Pydantic compatibility layer
-pydantic_graph = PydanticCompatibleAigieGraph(WorkflowState)
-adapter = StateAdapter(WorkflowState)
-
-# Manual conversions needed
-state_dict = adapter.to_dict(pydantic_state)
-final_state = adapter.from_dict(result_dict)
-```
-
-### After (Unified Standard)
-```python
-# ✅ New unified approach
 from aigie import AigieStateGraph
+from pydantic import BaseModel
 
-# Single standard: Pydantic models
-graph = AigieStateGraph(state_schema=WorkflowState)
+# Define your Pydantic models
+class WorkflowState(BaseModel):
+    ticket_id: str
+    current_step: str
+    ticket: dict
+    # ... other fields
 
-# No conversions needed - works directly with Pydantic models
-final_state = graph.invoke(initial_state)  # Returns Pydantic model
-```
-
-## 📋 Migration Steps
-
-### Step 1: Update Imports
-
-**Remove old compatibility imports:**
-```python
-# ❌ Remove these
-from aigie import PydanticCompatibleAigieGraph, WorkflowCompatibleAigieGraph
-from aigie import StateAdapter, WorkflowStateAdapter
-from aigie import pydantic_to_dict, dict_to_pydantic, validate_workflow_state
-```
-
-**Use the unified import:**
-```python
-# ✅ Use this
-from aigie import AigieStateGraph
-```
-
-### Step 2: Update Graph Creation
-
-**Before:**
-```python
-# ❌ Old approach
-workflow_graph = create_workflow_compatible_graph(
-    WorkflowState,
-    enable_gemini_remediation=True
-)
-```
-
-**After:**
-```python
-# ✅ New approach
+# Create the graph with Pydantic schema
 workflow_graph = AigieStateGraph(
-    state_schema=WorkflowState,  # Pass Pydantic model class directly
+    state_schema=WorkflowState,  # Pass your Pydantic model class!
     enable_gemini_remediation=True
 )
-```
 
-### Step 3: Update Node Functions
-
-**Before:**
-```python
-# ❌ Old approach with manual conversion
-def ticket_reception_node(state_dict: Dict[str, Any]) -> Dict[str, Any]:
-    # Convert dictionary to Pydantic model
-    state = WorkflowState(**state_dict)
-    
-    # Process the state
-    state.current_step = WorkflowStep.INTENT_ANALYSIS
-    
-    # Convert back to dictionary
-    return state.dict()
-```
-
-**After:**
-```python
-# ✅ New approach - direct Pydantic models
-def ticket_reception_node(state: WorkflowState) -> WorkflowState:
-    # Work directly with Pydantic model
-    state.current_step = WorkflowStep.INTENT_ANALYSIS
+# Add nodes that work with Pydantic models
+def my_node(state: WorkflowState) -> WorkflowState:
+    # Work with Pydantic models directly
+    state.current_step = "next_step"
     return state
-```
 
-### Step 4: Update Graph Execution
+workflow_graph.add_node("my_node", my_node)
 
-**Before:**
-```python
-# ❌ Old approach with manual conversion
-initial_state_dict = pydantic_to_dict(initial_state)
-result_dict = workflow_graph.invoke(initial_state_dict)
-final_state = dict_to_pydantic(result_dict, WorkflowState)
-```
-
-**After:**
-```python
-# ✅ New approach - direct Pydantic models
+# Execute with Pydantic model
+initial_state = WorkflowState(ticket_id="123", current_step="start", ticket={})
 final_state = workflow_graph.invoke(initial_state)  # Returns Pydantic model
 ```
 
-## 🔧 Complete Migration Example
+## 🔄 **General Migration Steps**
 
-### Before Migration
+### **From Aigie 0.2.x to 0.3.x**
+
+1. **Update your imports:**
+   ```python
+   # Old
+   from aigie import StateGraph
+   
+   # New
+   from aigie import AigieStateGraph
+   ```
+
+2. **Update graph creation:**
+   ```python
+   # Old
+   graph = StateGraph()
+   
+   # New
+   graph = AigieStateGraph(
+       state_schema=YourPydanticModel,  # New parameter
+       enable_gemini_remediation=True,  # New feature
+       auto_apply_fixes=False,          # New feature
+       log_remediation=True             # New feature
+   )
+   ```
+
+3. **Your node functions can work with Pydantic models directly:**
+   ```python
+   # Your functions can work with Pydantic models directly
+   def my_node(state: WorkflowState) -> WorkflowState:
+       # Work with Pydantic models directly
+       state.current_step = "next_step"
+       return state
+   ```
+
+### **From LangGraph to Aigie**
+
+1. **Replace StateGraph with AigieStateGraph:**
+   ```python
+   # Old
+   from langgraph.graph import StateGraph
+   graph = StateGraph(YourPydanticModel)
+   
+   # New
+   from aigie import AigieStateGraph
+   graph = AigieStateGraph(
+       state_schema=YourPydanticModel,
+       enable_gemini_remediation=True
+   )
+   ```
+
+2. **Add enhanced error handling:**
+   ```python
+   # New: Enhanced error handling
+   graph = AigieStateGraph(
+       state_schema=YourPydanticModel,
+       enable_gemini_remediation=True,
+       auto_apply_fixes=False,
+       log_remediation=True
+   )
+   ```
+
+## 🧪 **Testing Your Migration**
+
+### **Test Graph Execution**
+
 ```python
-from aigie import create_workflow_compatible_graph, pydantic_to_dict, dict_to_pydantic
-from pydantic import BaseModel
+# Test with Pydantic model
+initial_state = WorkflowState(...)
+final_state = workflow_graph.invoke(initial_state)
 
-class WorkflowState(BaseModel):
-    ticket_id: str
-    current_step: str
-    ticket: dict
-
-# Create graph with compatibility layer
-workflow_graph = create_workflow_compatible_graph(
-    WorkflowState,
-    enable_gemini_remediation=True
-)
-
-# Add nodes with manual conversion
-def process_node(state_dict: dict) -> dict:
-    state = WorkflowState(**state_dict)
-    state.current_step = "processed"
-    return state.dict()
-
-workflow_graph.add_workflow_node("process", process_node)
-
-# Execute with manual conversion
-initial_state = WorkflowState(ticket_id="123", current_step="start", ticket={})
-initial_dict = pydantic_to_dict(initial_state)
-result_dict = workflow_graph.invoke(initial_dict)
-final_state = dict_to_pydantic(result_dict, WorkflowState)
+# Verify the result is still a Pydantic model
+assert isinstance(final_state, WorkflowState)
+print("✅ Migration successful!")
 ```
 
-### After Migration
+## 🚨 **Common Issues and Solutions**
+
+### **Issue 1: "Invalid state update" Error**
+
+**Problem:** This usually means there's a mismatch in the state schema.
+
+**Solution:** Make sure your Pydantic model matches the expected fields.
+
+### **Issue 2: Enum values not being recognized**
+
+**Problem:** Aigie sees enum objects instead of string values.
+
+**Solution:** Use string enums or convert enum values to strings in your model.
+
+### **Issue 3: Datetime serialization errors**
+
+**Problem:** Aigie can't serialize datetime objects.
+
+**Solution:** Use Pydantic's datetime field types or convert to ISO strings.
+
+## 📚 **Complete Example**
+
+See `examples/enhanced_usage.py` for a complete working example that demonstrates:
+
+- Proper Pydantic model usage
+- Native LangGraph integration
+- Error handling with Gemini AI
+- Analytics and monitoring
+
+## 🔧 **Configuration Options**
+
+### **AigieStateGraph Parameters**
+
 ```python
-from aigie import AigieStateGraph
-from pydantic import BaseModel
-
-class WorkflowState(BaseModel):
-    ticket_id: str
-    current_step: str
-    ticket: dict
-
-# Create graph with unified approach
 workflow_graph = AigieStateGraph(
-    state_schema=WorkflowState,
-    enable_gemini_remediation=True
+    state_schema=YourPydanticModel,     # Pydantic model class
+    enable_gemini_remediation=True,     # Enable AI-powered error remediation
+    gemini_project_id="your-project",   # GCP project ID (optional)
+    auto_apply_fixes=False,             # Auto-apply AI suggestions
+    log_remediation=True                # Log remediation analysis
 )
-
-# Add nodes with direct Pydantic models
-def process_node(state: WorkflowState) -> WorkflowState:
-    state.current_step = "processed"
-    return state
-
-workflow_graph.add_node("process", process_node)
-
-# Execute with direct Pydantic models
-initial_state = WorkflowState(ticket_id="123", current_step="start", ticket={})
-final_state = workflow_graph.invoke(initial_state)  # Returns WorkflowState
 ```
 
-## 🎉 Benefits of Migration
+### **Node Configuration**
 
-### Code Simplification
-- **50% less code**: No more compatibility layers
-- **Cleaner functions**: Direct Pydantic model usage
-- **Better IDE support**: Full autocomplete and type checking
+```python
+workflow_graph.add_node(
+    "my_node", 
+    my_function,
+    enable_gemini_remediation=True,  # Override graph setting
+    max_attempts=3,                  # Retry attempts
+    auto_apply_fixes=True,           # Auto-apply fixes for this node
+    on_error=my_error_handler        # Custom error handler
+)
+```
 
-### Performance Improvement
-- **Faster execution**: No conversion overhead
-- **Memory efficient**: No duplicate state representations
-- **Reduced complexity**: Single code path
+## 📊 **Monitoring and Analytics**
 
-### Developer Experience
-- **Type safety**: Compile-time error detection
-- **Self-documenting**: Pydantic field descriptions
-- **Validation**: Automatic data validation
+### **Get Graph Analytics**
 
-## 🔍 Backward Compatibility
+```python
+analytics = workflow_graph.get_graph_analytics()
+print(f"Total nodes: {analytics['graph_summary']['total_nodes']}")
+print(f"Total errors: {analytics['graph_summary']['total_errors']}")
+print(f"Total remediations: {analytics['graph_summary']['total_remediations']}")
+```
 
-### What's Still Supported
-- ✅ Dictionary inputs (automatically converted to Pydantic)
-- ✅ All existing node functions (with automatic conversion)
-- ✅ All configuration options
-- ✅ All analytics and monitoring features
+### **Get Node Analytics**
 
-### What's Deprecated
-- ❌ `PydanticCompatibleAigieGraph` (use `AigieStateGraph` with `state_schema`)
-- ❌ `WorkflowCompatibleAigieGraph` (use `AigieStateGraph` with `state_schema`)
-- ❌ `StateAdapter` and `WorkflowStateAdapter` (no longer needed)
-- ❌ Manual conversion utilities (automatic conversion provided)
+```python
+node_analytics = workflow_graph.get_node_analytics("my_node")
+print(f"Node errors: {node_analytics['total_errors']}")
+print(f"Error categories: {node_analytics['error_categories']}")
+```
 
-## 🚨 Breaking Changes
+## 🎯 **Best Practices**
 
-### Required Changes
-1. **Graph Creation**: Must specify `state_schema` parameter
-2. **Node Functions**: Should return Pydantic models (automatic conversion still works)
-3. **Imports**: Remove compatibility layer imports
+1. **Always use Pydantic models for type safety**
+2. **Use the enhanced `AigieStateGraph` with `state_schema`**
+3. **Enable Gemini remediation for production environments**
+4. **Monitor error analytics regularly**
+5. **Use the provided examples as templates**
 
-### Optional Improvements
-1. **Node Functions**: Update to work directly with Pydantic models
-2. **Type Hints**: Add proper type annotations
-3. **Validation**: Use Pydantic field validators
+## 🆘 **Need Help?**
 
-## 📞 Support
+If you encounter issues during migration:
 
-If you encounter any issues during migration:
+1. Check the examples in the `examples/` directory
+2. Verify your Pydantic model structure
+3. Review the error analytics for insights
+4. Enable detailed logging for debugging
 
-1. **Check the examples**: See `examples/unified_pydantic_example.py`
-2. **Review the API**: All methods support both Pydantic models and dictionaries
-3. **Enable debug mode**: Set `log_remediation=True` for detailed logs
-4. **Contact support**: Open an issue with your specific use case
-
-## 🎯 Migration Checklist
-
-- [ ] Update imports to use `AigieStateGraph` only
-- [ ] Add `state_schema` parameter to graph creation
-- [ ] Update node functions to work with Pydantic models (optional)
-- [ ] Remove manual conversion calls
-- [ ] Test with your existing workflow
-- [ ] Update documentation and examples
-- [ ] Deploy and monitor
-
-**Migration time estimate**: 30 minutes to 2 hours depending on complexity
+The enhanced Aigie package provides comprehensive error handling and native Pydantic model support, making it easy to work with structured data while maintaining compatibility with LangGraph's architecture.

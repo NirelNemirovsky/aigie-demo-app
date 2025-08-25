@@ -45,6 +45,7 @@ class AigieStateGraph(StateGraph):
         self.state_schema = state_schema
         
         # Initialize the underlying StateGraph with the Pydantic schema
+        # LangGraph supports Pydantic models directly!
         super().__init__(state_schema)
         
         # Store configuration for enhanced error handling
@@ -99,10 +100,13 @@ class AigieStateGraph(StateGraph):
             print(f"   - Gemini remediation: {enhanced_config['enable_gemini_remediation']}")
             print(f"   - Auto-apply fixes: {enhanced_config['auto_apply_fixes']}")
             print(f"   - Max attempts: {enhanced_config['max_attempts']}")
+            print(f"   - Pydantic schema: {self.state_schema.__name__}")
         else:
             # If no node_data, just add the node_id (for conditional nodes)
             super().add_node(node_id, node_data)
             print(f"✅ Conditional node '{node_id}' added successfully.")
+
+
 
     def validate_state(self, state: Union[BaseModel, Dict[str, Any]]) -> bool:
         """
