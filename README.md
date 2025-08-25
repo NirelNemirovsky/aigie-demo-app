@@ -748,6 +748,12 @@ python -m pytest tests/ -v
    pip install -e .
    ```
 
+5. **Compatibility Issues (Fixed in 0.5.0)**
+   - ✅ **DynamicFixResult.fix_code** → **generated_code** attribute fixed
+   - ✅ **JSON serialization** with datetime objects fixed
+   - ✅ **Advanced proactive remediation** classes properly exported
+   - See [COMPATIBILITY_FIXES_SUMMARY.md](./COMPATIBILITY_FIXES_SUMMARY.md) for details
+
 ### Getting Help
 
 - Check the [examples](./examples/) directory for usage patterns

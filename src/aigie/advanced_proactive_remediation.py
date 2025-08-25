@@ -15,6 +15,13 @@ from typing import Dict, Any, List, Optional, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
 
+# Custom JSON encoder for datetime objects
+class DateTimeEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return super().default(obj)
+
 try:
     from .error_taxonomy import ErrorAnalysis, ErrorCategory
     from .ai_code_generator import AICodeGenerator, AICodeGenerationRequest, AICodeGenerationResponse
@@ -380,7 +387,7 @@ ERROR:
 - Severity: {error_analysis.severity.value}
 
 STATE:
-{json.dumps(state, indent=2)}
+{json.dumps(state, indent=2, cls=DateTimeEncoder)}
 
 CONTEXT:
 {code_context}
@@ -399,10 +406,10 @@ Provide:
 Based on this error analysis, generate a fix strategy:
 
 ANALYSIS:
-{json.dumps(analysis_thought.output_data, indent=2)}
+{json.dumps(analysis_thought.output_data, indent=2, cls=DateTimeEncoder)}
 
 STATE:
-{json.dumps(state, indent=2)}
+{json.dumps(state, indent=2, cls=DateTimeEncoder)}
 
 Generate:
 1. Fix strategy description
@@ -418,10 +425,10 @@ Generate:
 Generate Python code to fix this issue:
 
 STRATEGY:
-{json.dumps(strategy_thought.output_data, indent=2)}
+{json.dumps(strategy_thought.output_data, indent=2, cls=DateTimeEncoder)}
 
 STATE:
-{json.dumps(state, indent=2)}
+{json.dumps(state, indent=2, cls=DateTimeEncoder)}
 
 Requirements:
 1. Safe code that only manipulates the state dictionary

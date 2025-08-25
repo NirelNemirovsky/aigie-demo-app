@@ -19,6 +19,18 @@ from .pydantic_compatible_graph import (
     create_pydantic_compatible_graph,
     create_workflow_compatible_graph
 )
+from .advanced_proactive_remediation import (
+    AdvancedProactiveRemediationEngine,
+    CodeActAgent,
+    DynamicFixResult,
+    AgentThought,
+    AgentAction
+)
+from .ai_code_generator import (
+    AICodeGenerator,
+    AICodeGenerationRequest,
+    AICodeGenerationResponse
+)
 
 __version__ = "0.5.0"
 __all__ = [
@@ -44,5 +56,15 @@ __all__ = [
     "PydanticCompatibleAigieGraph",
     "WorkflowCompatibleAigieGraph",
     "create_pydantic_compatible_graph",
-    "create_workflow_compatible_graph"
+    "create_workflow_compatible_graph",
+    # Advanced proactive remediation exports
+    "AdvancedProactiveRemediationEngine",
+    "CodeActAgent",
+    "DynamicFixResult",
+    "AgentThought",
+    "AgentAction",
+    # AI code generator exports
+    "AICodeGenerator",
+    "AICodeGenerationRequest",
+    "AICodeGenerationResponse"
 ]

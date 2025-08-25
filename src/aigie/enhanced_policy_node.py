@@ -13,6 +13,7 @@ import json
 from dataclasses import asdict
 from pydantic import BaseModel
 import logging
+from datetime import datetime
 
 from .error_taxonomy import TrailTaxonomyClassifier, ErrorAnalysis
 from .gemini_remediator import GeminiRemediator, GeminiRemediationResult, RemediationSuggestion
@@ -25,6 +26,13 @@ T = TypeVar('T', bound=BaseModel)
 
 # Configure logging
 logger = logging.getLogger(__name__)
+
+# Custom JSON encoder for datetime objects
+class DateTimeEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, datetime):
+            return obj.isoformat()
+        return super().default(obj)
 
 # Try to import GCP logging, but don't fail if not available
 try:
@@ -297,13 +305,13 @@ class EnhancedPolicyNode(Runnable[GraphLike, GraphLike]):
         print(f"   Hints: {', '.join(error_analysis.remediation_hints)}")
         
         # Standard Python logging
-        logger.error(f"Trail Taxonomy Analysis: {json.dumps(taxonomy_log, indent=2)}")
+        logger.error(f"Trail Taxonomy Analysis: {json.dumps(taxonomy_log, indent=2, cls=DateTimeEncoder)}")
         
         # GCP Logging (if available)
         if GCP_LOGGING_AVAILABLE and gcp_logger:
             try:
                 gcp_logger.log_text(
-                    f"Trail Taxonomy Analysis: {json.dumps(taxonomy_log, indent=2)}",
+                    f"Trail Taxonomy Analysis: {json.dumps(taxonomy_log, indent=2, cls=DateTimeEncoder)}",
                     severity="ERROR"
                 )
             except Exception as e:
@@ -347,13 +355,13 @@ class EnhancedPolicyNode(Runnable[GraphLike, GraphLike]):
                         print(f"      Code: {sugg.code_example}")
             
             # Standard Python logging
-            logger.info(f"Gemini Remediation Analysis: {json.dumps(remediation_log, indent=2)}")
+            logger.info(f"Gemini Remediation Analysis: {json.dumps(remediation_log, indent=2, cls=DateTimeEncoder)}")
             
             # GCP Logging (if available)
             if GCP_LOGGING_AVAILABLE and gcp_logger:
                 try:
                     gcp_logger.log_text(
-                        f"Gemini Remediation Analysis: {json.dumps(remediation_log, indent=2)}",
+                        f"Gemini Remediation Analysis: {json.dumps(remediation_log, indent=2, cls=DateTimeEncoder)}",
                         severity="INFO"
                     )
                 except Exception as e:
@@ -367,7 +375,7 @@ class EnhancedPolicyNode(Runnable[GraphLike, GraphLike]):
                 "node": self.name,
                 "attempt": attempt,
                 "success": proactive_fix_result.success,
-                "fix_code": proactive_fix_result.fix_code,
+                "fix_code": proactive_fix_result.generated_code,
                 "execution_time": proactive_fix_result.execution_time,
                 "state_changes": proactive_fix_result.state_changes,
                 "error_message": proactive_fix_result.error_message
@@ -382,13 +390,13 @@ class EnhancedPolicyNode(Runnable[GraphLike, GraphLike]):
                 print(f"   Error: {proactive_fix_result.error_message}")
             
             # Standard Python logging
-            logger.info(f"Proactive Remediation Result: {json.dumps(proactive_log, indent=2)}")
+            logger.info(f"Proactive Remediation Result: {json.dumps(proactive_log, indent=2, cls=DateTimeEncoder)}")
             
             # GCP Logging (if available)
             if GCP_LOGGING_AVAILABLE and gcp_logger:
                 try:
                     gcp_logger.log_text(
-                        f"Proactive Remediation Result: {json.dumps(proactive_log, indent=2)}",
+                        f"Proactive Remediation Result: {json.dumps(proactive_log, indent=2, cls=DateTimeEncoder)}",
                         severity="INFO"
                     )
                 except Exception as e:
@@ -437,7 +445,7 @@ class EnhancedPolicyNode(Runnable[GraphLike, GraphLike]):
         if proactive_fix_result:
             updates["proactive_remediation_details"] = {
                 "success": proactive_fix_result.success,
-                "fix_code": proactive_fix_result.fix_code,
+                "fix_code": proactive_fix_result.generated_code,
                 "execution_time": proactive_fix_result.execution_time,
                 "state_changes": proactive_fix_result.state_changes,
                 "error_message": proactive_fix_result.error_message
