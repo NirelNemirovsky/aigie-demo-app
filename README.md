@@ -4,7 +4,7 @@ A Python package that provides intelligent error handling and **advanced proacti
 
 ## 🚀 Features
 
-- **Unified Pydantic Standard**: Native support for Pydantic models as the single state management standard
+- **Native Pydantic Support**: Direct integration with LangGraph's native Pydantic model support
 - **Trail Taxonomy Error Classification**: Comprehensive error categorization based on the Trail Taxonomy paper
 - **Gemini AI Remediation**: AI-powered error analysis and remediation suggestions using Google's Gemini 2.5 Flash
 - **Real-time Error Handling**: Intelligent error detection and resolution in real-time
@@ -16,6 +16,30 @@ A Python package that provides intelligent error handling and **advanced proacti
 - **GCP Integration**: Built-in Google Cloud Logging and Vertex AI integration
 
 ## 🏗️ Architecture
+
+### Simplified Pydantic Integration
+
+Aigie now works directly with LangGraph's native Pydantic support, eliminating the need for conversion layers:
+
+```python
+from aigie import AigieStateGraph
+from pydantic import BaseModel
+
+class WorkflowState(BaseModel):
+    ticket_id: str
+    current_step: str
+    # ... other fields
+
+# Create graph with Pydantic schema
+graph = AigieStateGraph(state_schema=WorkflowState)
+
+# Add nodes that work with Pydantic models directly
+def my_node(state: WorkflowState) -> WorkflowState:
+    state.current_step = "next_step"
+    return state
+
+graph.add_node("my_node", my_node)
+```
 
 ### Advanced Proactive Remediation Engine
 
@@ -170,20 +194,28 @@ Aigie uses **Pydantic models as the single standard** for state management. This
 
 ```python
 from aigie import AigieStateGraph
+from pydantic import BaseModel
+
+class WorkflowState(BaseModel):
+    input: str
+    result: str = ""
+    error: dict = None
 
 # Create an enhanced state graph with AI-powered error handling
 graph = AigieStateGraph(
+    state_schema=WorkflowState,
     enable_gemini_remediation=True,  # Enable Gemini AI remediation
     auto_apply_fixes=False,          # Don't auto-apply fixes
     log_remediation=True             # Log all remediation analysis
 )
 
 # Define your AI functions
-def my_ai_function(state):
+def my_ai_function(state: WorkflowState) -> WorkflowState:
     # Your AI logic here
-    if "input" not in state:
+    if not state.input:
         raise ValueError("Missing input in state")
-    return {"result": "success", **state}
+    state.result = "success"
+    return state
 
 # Add nodes (automatically wrapped with enhanced error handling)
 graph.add_node("my_node", my_ai_function)
@@ -194,7 +226,7 @@ graph.add_node("my_node", my_ai_function)
 ### Advanced Usage with Custom Configuration
 
 ```python
-from aigie import AigieStateGraph, EnhancedPolicyNode
+from aigie import AigieStateGraph, PolicyNode
 
 # Create graph with custom configuration
 graph = AigieStateGraph(

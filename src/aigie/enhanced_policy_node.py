@@ -1,7 +1,7 @@
 """
-Enhanced PolicyNode V2 with Advanced Error Handling and Learning
+PolicyNode with Advanced Error Handling and Learning
 
-This module provides an enhanced PolicyNode that integrates the improved error classification
+This module provides a PolicyNode that integrates error classification
 and adaptive remediation system to better handle architectural issues, learn from failures,
 and provide fallback mechanisms.
 """
@@ -20,8 +20,8 @@ from .error_taxonomy import EnhancedTrailTaxonomyClassifier, ErrorAnalysis, Erro
 from .advanced_proactive_remediation import AdaptiveRemediationEngine, EnhancedRemediationResult, FixStrategy
 from .gemini_remediator import GeminiRemediator, GeminiRemediationResult, RemediationSuggestion
 
-# Support both Pydantic models and dictionaries for backward compatibility
-GraphLike = Union[BaseModel, Dict[str, Any]]
+# Support Pydantic models directly
+GraphLike = BaseModel
 T = TypeVar('T', bound=BaseModel)
 
 # Configure logging
@@ -47,9 +47,9 @@ except ImportError:
     gcp_logger = None
 
 
-class EnhancedPolicyNode(Runnable[GraphLike, GraphLike]):
+class PolicyNode(Runnable[GraphLike, GraphLike]):
     """
-    Enhanced PolicyNode V2 with advanced error handling, learning, and architectural awareness
+    PolicyNode with advanced error handling, learning, and architectural awareness
     """
     
     def __init__(
@@ -131,19 +131,29 @@ class EnhancedPolicyNode(Runnable[GraphLike, GraphLike]):
         attempt = 0
         last_exc = None
         
-        # Convert state to dictionary for processing
-        if isinstance(state, BaseModel):
-            cur_state = state.model_dump() if hasattr(state, 'model_dump') else state.dict()
-        else:
-            cur_state = state.copy()
-        
-        cur_state["last_node"] = self.name
+        # Work directly with Pydantic model
+        cur_state = state.copy()
+        # Set last_node if the field exists
+        if hasattr(cur_state, 'last_node'):
+            cur_state.last_node = self.name
         
         while attempt < self.max_attempts:
             try:
                 out = self._invoke_once(cur_state, config)
-                # Success - normalize output
-                out = {**cur_state, **out, "error": None, "last_node": self.name}
+                # Success - merge output with current state
+                if isinstance(out, dict):
+                    # If output is a dict, merge it with current state
+                    for key, value in out.items():
+                        setattr(cur_state, key, value)
+                else:
+                    # If output is a Pydantic model, use it directly
+                    cur_state = out
+                
+                # Clear any previous errors
+                if hasattr(cur_state, 'error'):
+                    cur_state.error = None
+                if hasattr(cur_state, 'last_node'):
+                    cur_state.last_node = self.name
                 
                 # Log successful execution
                 if self.log_remediation:
@@ -160,7 +170,7 @@ class EnhancedPolicyNode(Runnable[GraphLike, GraphLike]):
                         except Exception as e:
                             logger.warning(f"Failed to log to GCP: {e}")
                 
-                return out
+                return cur_state
                 
             except Exception as e:
                 print(f"\n❌ Attempt {attempt + 1} failed in node '{self.name}': {str(e)}")
@@ -196,21 +206,32 @@ class EnhancedPolicyNode(Runnable[GraphLike, GraphLike]):
                     out = self.fallback.invoke(cur_state, config=config)
                 else:
                     out = self.fallback(cur_state)
-                return {**cur_state, **out, "error": None, "last_node": self.name}
+                
+                # Handle fallback output
+                if isinstance(out, dict):
+                    for key, value in out.items():
+                        setattr(cur_state, key, value)
+                else:
+                    cur_state = out
+                
+                if hasattr(cur_state, 'error'):
+                    cur_state.error = None
+                if hasattr(cur_state, 'last_node'):
+                    cur_state.last_node = self.name
+                return cur_state
             except Exception as e2:
                 last_exc = e2
         
         # Final error state
-        return {
-            **cur_state,
-            "error": {
+        if hasattr(cur_state, 'error'):
+            cur_state.error = {
                 "node": self.name,
                 "type": type(last_exc).__name__,
                 "msg": str(last_exc),
                 "attempts": self.max_attempts,
                 "final_attempt": True
-            },
-        }
+            }
+        return cur_state
     
     def _handle_error_with_enhanced_remediation(self, exception: Exception, attempt: int, 
                                               state: GraphLike, config: Optional[RunnableConfig]) -> Dict[str, Any]:

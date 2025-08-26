@@ -1,5 +1,5 @@
 from langgraph.graph import StateGraph
-from .enhanced_policy_node import EnhancedPolicyNode
+from .enhanced_policy_node import PolicyNode
 from typing import Any, Dict, Optional, Type, TypeVar, Union, List
 from pydantic import BaseModel
 
@@ -71,27 +71,26 @@ class AigieStateGraph(StateGraph):
         
         Args:
             node_id: The identifier for the node
-            node_data: The function or runnable to wrap with EnhancedPolicyNode
-            **node_config: Additional configuration for the EnhancedPolicyNode
+            node_data: The function or runnable to wrap with PolicyNode
+            **node_config: Additional configuration for the PolicyNode
         """
         if node_data is not None:
-            # Extract enhanced policy node specific config
+            # Extract policy node specific config
             enhanced_config = {
                 "enable_gemini_remediation": node_config.get("enable_gemini_remediation", self.enable_gemini_remediation),
                 "gemini_project_id": node_config.get("gemini_project_id", self.gemini_project_id),
                 "auto_apply_fixes": node_config.get("auto_apply_fixes", self.auto_apply_fixes),
                 "log_remediation": node_config.get("log_remediation", self.log_remediation),
-                "enable_proactive_remediation": node_config.get("enable_proactive_remediation", self.enable_proactive_remediation),
-                "proactive_fix_types": node_config.get("proactive_fix_types", self.proactive_fix_types),
-                "max_proactive_attempts": node_config.get("max_proactive_attempts", self.max_proactive_attempts),
+                "enable_adaptive_remediation": node_config.get("enable_adaptive_remediation", self.enable_proactive_remediation),
+                "max_adaptive_attempts": node_config.get("max_adaptive_attempts", self.max_proactive_attempts),
                 "max_attempts": node_config.get("max_attempts", 3),
                 "fallback": node_config.get("fallback"),
                 "tweak_input": node_config.get("tweak_input"),
                 "on_error": node_config.get("on_error")
             }
             
-            # Wrap the node with EnhancedPolicyNode
-            wrapped_node = EnhancedPolicyNode(
+            # Wrap the node with PolicyNode
+            wrapped_node = PolicyNode(
                 inner=node_data, 
                 name=node_id,
                 **enhanced_config
@@ -107,9 +106,9 @@ class AigieStateGraph(StateGraph):
                 "creation_time": time.time()
             }
             
-            print(f"✅ Node '{node_id}' wrapped with EnhancedPolicyNode and added successfully.")
+            print(f"✅ Node '{node_id}' wrapped with PolicyNode and added successfully.")
             print(f"   - Gemini remediation: {enhanced_config['enable_gemini_remediation']}")
-            print(f"   - Proactive remediation: {enhanced_config['enable_proactive_remediation']}")
+            print(f"   - Adaptive remediation: {enhanced_config['enable_adaptive_remediation']}")
             print(f"   - Auto-apply fixes: {enhanced_config['auto_apply_fixes']}")
             print(f"   - Max attempts: {enhanced_config['max_attempts']}")
             print(f"   - Pydantic schema: {self.state_schema.__name__}")
@@ -120,59 +119,7 @@ class AigieStateGraph(StateGraph):
 
 
 
-    def validate_state(self, state: Union[BaseModel, Dict[str, Any]]) -> bool:
-        """
-        Validate that a state conforms to the expected schema.
-        
-        Args:
-            state: State to validate (Pydantic model or dictionary)
-            
-        Returns:
-            True if valid, False otherwise
-        """
-        try:
-            if isinstance(state, dict):
-                self.state_schema(**state)
-            elif isinstance(state, self.state_schema):
-                pass  # Already the right type
-            else:
-                return False
-            return True
-        except Exception:
-            return False
 
-    def to_dict(self, state: Union[BaseModel, Dict[str, Any]]) -> Dict[str, Any]:
-        """
-        Convert a state to dictionary format.
-        
-        Args:
-            state: State as Pydantic model or dictionary
-            
-        Returns:
-            Dictionary representation
-        """
-        if isinstance(state, dict):
-            return state.copy()
-        elif isinstance(state, BaseModel):
-            # Use Pydantic's model_dump() method (v2) or dict() method (v1)
-            if hasattr(state, 'model_dump'):
-                return state.model_dump()
-            else:
-                return state.dict()
-        else:
-            raise ValueError(f"Unsupported state type: {type(state)}")
-
-    def from_dict(self, state_dict: Dict[str, Any]) -> BaseModel:
-        """
-        Convert a dictionary to Pydantic model.
-        
-        Args:
-            state_dict: Dictionary representation
-            
-        Returns:
-            Pydantic model instance
-        """
-        return self.state_schema(**state_dict)
 
     def get_node_analytics(self, node_id: Optional[str] = None) -> Dict[str, Any]:
         """

@@ -4,6 +4,7 @@ Basic usage example for the aigie package
 """
 
 from aigie import PolicyNode, AigieStateGraph
+from pydantic import BaseModel
 
 def main():
     """Demonstrate basic aigie functionality"""
@@ -11,20 +12,27 @@ def main():
     print("🚀 Aigie Package Demo")
     print("=" * 50)
     
+    # Define a simple Pydantic model for state
+    class SimpleState(BaseModel):
+        input: str = ""
+        processed: bool = False
+        result: str = ""
+        validated: bool = False
+        last_node: str = ""
+        error: dict = None
+    
     # Example 1: Basic PolicyNode usage
     print("\n1. Creating a PolicyNode...")
     
-    def simple_ai_function(state):
+    def simple_ai_function(state: SimpleState) -> SimpleState:
         """A simple AI function that processes state"""
         # Simulate some AI processing
-        if "input" not in state:
+        if not state.input:
             raise ValueError("Missing input in state")
         
-        return {
-            "processed": True,
-            "result": f"Processed: {state['input']}",
-            **state
-        }
+        state.processed = True
+        state.result = f"Processed: {state.input}"
+        return state
     
     # Create a PolicyNode with retry logic
     node = PolicyNode(
@@ -37,19 +45,24 @@ def main():
     print("✅ PolicyNode created successfully")
     
     # Test the node
-    test_state = {"input": "Hello, AI World!", "step": 1}
+    test_state = SimpleState(input="Hello, AI World!")
     result = node.invoke(test_state)
     print(f"✅ Node execution result: {result}")
     
     # Example 2: AigieStateGraph usage
     print("\n2. Creating an AigieStateGraph...")
     
-    graph = AigieStateGraph()
+    graph = AigieStateGraph(state_schema=SimpleState)
     print("✅ StateGraph created successfully")
     
     # Add nodes to the graph
     graph.add_node("ai_processor", simple_ai_function)
-    graph.add_node("validator", lambda state: {"validated": True, **state})
+    
+    def validator_node(state: SimpleState) -> SimpleState:
+        state.validated = True
+        return state
+    
+    graph.add_node("validator", validator_node)
     
     print("✅ Nodes added to graph successfully")
     
