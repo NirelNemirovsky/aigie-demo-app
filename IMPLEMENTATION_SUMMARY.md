@@ -20,7 +20,7 @@ This document summarizes the complete implementation of the enhanced Aigie packa
 - **Intelligent caching**: Reduces API calls with smart caching
 - **Fallback mechanisms**: Works even when Gemini is unavailable
 
-### 3. **Enhanced PolicyNode**
+### 3. **PolicyNode**
 - **Real-time error handling**: Processes errors as they occur
 - **Trail Taxonomy integration**: Automatic error classification
 - **Gemini AI integration**: AI-powered remediation suggestions
@@ -39,7 +39,7 @@ This document summarizes the complete implementation of the enhanced Aigie packa
 
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Your AI Node  │───▶│ EnhancedPolicyNode│───▶│ Trail Taxonomy  │
+│   Your AI Node  │───▶│ PolicyNode│───▶│ Trail Taxonomy  │
 │                 │    │                  │    │ Classification  │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
                                 │                        │
@@ -61,7 +61,7 @@ This document summarizes the complete implementation of the enhanced Aigie packa
 ### Core Implementation Files
 1. **`src/aigie/error_taxonomy.py`** - Trail Taxonomy classification system
 2. **`src/aigie/gemini_remediator.py`** - Gemini 2.5 Flash integration
-3. **`src/aigie/enhanced_policy_node.py`** - Enhanced PolicyNode with AI capabilities
+3. **`src/aigie/enhanced_policy_node.py`** - PolicyNode with AI capabilities
 4. **`src/aigie/aigie_state_graph.py`** - Enhanced StateGraph wrapper
 5. **`src/aigie/__init__.py`** - Updated package exports
 

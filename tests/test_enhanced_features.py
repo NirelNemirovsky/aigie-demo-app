@@ -7,8 +7,8 @@ from unittest.mock import Mock, patch
 import os
 
 from aigie import (
-    AigieStateGraph, 
-    EnhancedPolicyNode, 
+    AigieStateGraph,
+    PolicyNode, 
     TrailTaxonomyClassifier, 
     GeminiRemediator,
     ErrorCategory,
@@ -55,15 +55,15 @@ class TestTrailTaxonomyClassifier:
         assert analysis.confidence > 0.3
 
 
-class TestEnhancedPolicyNode:
-    """Test Enhanced PolicyNode functionality"""
+class TestPolicyNode:
+    """Test PolicyNode functionality"""
     
     def test_basic_functionality(self):
-        """Test basic EnhancedPolicyNode functionality"""
+        """Test basic PolicyNode functionality"""
         def test_function(state):
             return {"result": "success", **state}
         
-        node = EnhancedPolicyNode(
+        node = PolicyNode(
             inner=test_function,
             name="test_node",
             enable_gemini_remediation=False  # Disable for testing
@@ -79,7 +79,7 @@ class TestEnhancedPolicyNode:
         def error_function(state):
             raise ValueError("Test error")
         
-        node = EnhancedPolicyNode(
+        node = PolicyNode(
             inner=error_function,
             name="error_node",
             enable_gemini_remediation=False,
@@ -97,7 +97,7 @@ class TestEnhancedPolicyNode:
         def error_function(state):
             raise ValueError("Test error")
         
-        node = EnhancedPolicyNode(
+        node = PolicyNode(
             inner=error_function,
             name="fallback_node",
             enable_gemini_remediation=True,  # Try to enable
@@ -135,7 +135,7 @@ class TestAigieStateGraph:
         
         assert "test_node" in graph.nodes
         node = graph.nodes["test_node"]
-        assert isinstance(node, EnhancedPolicyNode)
+        assert isinstance(node, PolicyNode)
         assert node.name == "test_node"
     
     def test_analytics_functionality(self):

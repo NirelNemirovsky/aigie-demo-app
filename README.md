@@ -431,7 +431,7 @@ result = engine.apply_proactive_remediation(error, state)
 ### Integration with LangGraph Workflows
 
 ```python
-from aigie import AigieStateGraph, EnhancedPolicyNode
+from aigie import AigieStateGraph, PolicyNode
 
 # Create graph with advanced proactive remediation
 graph = AigieStateGraph(
@@ -476,10 +476,10 @@ graph.add_node(
 ### Custom Error Handling with Proactive Remediation
 
 ```python
-from aigie import EnhancedPolicyNode
+from aigie import PolicyNode
 
 # Create a custom node with specific remediation settings
-class CustomNode(EnhancedPolicyNode):
+class CustomNode(PolicyNode):
     def __init__(self, inner_function):
         super().__init__(
             inner=inner_function,
@@ -622,7 +622,7 @@ print(f"Remediation Stats: {graph_analytics['graph_summary']['total_remediations
 - `auto_apply_fixes`: Automatically apply AI-suggested fixes
 - `log_remediation`: Log remediation analysis to GCP
 
-### EnhancedPolicyNode Configuration
+### PolicyNode Configuration
 - `max_attempts`: Maximum retry attempts
 - `enable_proactive_remediation`: Enable proactive remediation for this node
 - `proactive_fix_types`: Specific error types to fix for this node
@@ -646,7 +646,7 @@ print(f"Remediation Stats: {graph_analytics['graph_summary']['total_remediations
 
 ```
 ┌─────────────────┐    ┌──────────────────┐    ┌─────────────────┐
-│   Your AI Node  │───▶│ EnhancedPolicyNode│───▶│ Trail Taxonomy  │
+│   Your AI Node  │───▶│ PolicyNode│───▶│ Trail Taxonomy  │
 │                 │    │                  │    │ Classification  │
 └─────────────────┘    └──────────────────┘    └─────────────────┘
                                 │                        │
