@@ -158,7 +158,17 @@ class PolicyNode(Runnable[GraphLike, GraphLike]):
         # Convert result back to dict if it's a Pydantic model
         if hasattr(result, 'dict'):
             return result.dict()
-        return result
+        elif isinstance(result, dict):
+            return result
+        else:
+            # If result is not a dict or Pydantic model, try to convert it
+            try:
+                if hasattr(result, '__dict__'):
+                    return result.__dict__
+                else:
+                    return {"result": result}
+            except Exception:
+                return {"result": str(result)}
     
     def invoke(self, state: GraphLike, config: Optional[RunnableConfig] = None) -> GraphLike:
         """Enhanced invoke with advanced error handling and learning"""
@@ -204,7 +214,17 @@ class PolicyNode(Runnable[GraphLike, GraphLike]):
                         except Exception as e:
                             logger.warning(f"Failed to log to GCP: {e}")
                 
-                return cur_state
+                # Always return a dictionary for LangGraph compatibility
+                if hasattr(cur_state, 'dict'):
+                    return cur_state.dict()
+                elif isinstance(cur_state, dict):
+                    return cur_state
+                else:
+                    # Fallback: try to convert to dict
+                    try:
+                        return cur_state.__dict__
+                    except Exception:
+                        return {"result": str(cur_state)}
                 
             except Exception as e:
                 print(f"\n❌ Attempt {attempt + 1} failed in node '{self.name}': {str(e)}")

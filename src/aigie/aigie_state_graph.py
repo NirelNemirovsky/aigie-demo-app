@@ -50,19 +50,8 @@ class AigieStateGraph(StateGraph):
         self.state_schema = state_schema
         
         # Initialize the underlying StateGraph with the Pydantic schema
-        # Convert Pydantic model to LangGraph-compatible format
-        if state_schema and issubclass(state_schema, BaseModel):
-            # Create a dictionary-based state schema for LangGraph compatibility
-            state_dict = {}
-            for field_name, field_info in state_schema.__fields__.items():
-                if field_info.default is not None:
-                    state_dict[field_name] = field_info.default
-                else:
-                    state_dict[field_name] = None
-            
-            super().__init__(state_dict)
-        else:
-            super().__init__(state_schema)
+        # Pass the class directly to parent - LangGraph handles Pydantic models natively
+        super().__init__(state_schema)
         
         # Auto-detect Gemini configuration for seamless setup
         self.gemini_config = self._auto_detect_gemini_config(
@@ -279,6 +268,10 @@ class AigieStateGraph(StateGraph):
         if self._pydantic_schema and isinstance(result, dict):
             return self._pydantic_schema(**result)
         return result
+    
+    def invoke_with_pydantic(self, state: Any, config: Optional[Any] = None) -> Any:
+        """Alternative invoke method that automatically handles Pydantic conversion"""
+        return self.invoke(state, config)
     
     def from_dict(self, state_dict: Dict[str, Any]) -> Any:
         """Convert dictionary back to Pydantic model"""
