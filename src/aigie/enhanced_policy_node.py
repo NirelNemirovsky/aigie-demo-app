@@ -95,7 +95,22 @@ class PolicyNode(Runnable[GraphLike, GraphLike]):
             )
         
         if enable_gemini_remediation:
-            self.gemini_remediator = GeminiRemediator(project_id=gemini_project_id)
+            # Use the auto-detected Gemini configuration
+            if gemini_project_id:
+                # Use Vertex AI service
+                self.gemini_remediator = GeminiRemediator(
+                    project_id=gemini_project_id,
+                    use_vertex_ai=True
+                )
+            elif hasattr(self, 'gemini_api_key') and self.gemini_api_key:
+                # Use Gemini Developer API
+                self.gemini_remediator = GeminiRemediator(
+                    api_key=self.gemini_api_key,
+                    use_vertex_ai=False
+                )
+            else:
+                # Try to auto-detect from environment or config
+                self.gemini_remediator = GeminiRemediator()
         
         # Performance tracking
         self.error_history = []

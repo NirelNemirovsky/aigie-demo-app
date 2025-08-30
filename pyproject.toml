@@ -18,7 +18,8 @@ dependencies = [
     "langchain-core", 
     "langgraph",
     "google-cloud-logging",
-    "google-cloud-aiplatform"
+    "google-cloud-aiplatform",
+    "google-genai>=0.3.0"
 ]
 keywords = ["ai", "error-handling", "langgraph", "gemini", "trail-taxonomy", "remediation"]
 classifiers = [

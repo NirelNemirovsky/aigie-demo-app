@@ -9,19 +9,19 @@ import os
 from aigie import (
     AigieStateGraph,
     PolicyNode, 
-    TrailTaxonomyClassifier, 
+    EnhancedTrailTaxonomyClassifier, 
     GeminiRemediator,
     ErrorCategory,
     ErrorSeverity
 )
 
 
-class TestTrailTaxonomyClassifier:
+class TestEnhancedTrailTaxonomyClassifier:
     """Test Trail Taxonomy error classification"""
     
     def test_input_error_classification(self):
         """Test classification of input validation errors"""
-        classifier = TrailTaxonomyClassifier()
+        classifier = EnhancedTrailTaxonomyClassifier()
         
         error = ValueError("Missing required field 'user_id'")
         analysis = classifier.classify_error(error)
@@ -33,7 +33,7 @@ class TestTrailTaxonomyClassifier:
     
     def test_processing_error_classification(self):
         """Test classification of processing errors"""
-        classifier = TrailTaxonomyClassifier()
+        classifier = EnhancedTrailTaxonomyClassifier()
         
         error = ZeroDivisionError("Division by zero")
         analysis = classifier.classify_error(error)
@@ -45,7 +45,7 @@ class TestTrailTaxonomyClassifier:
     
     def test_external_error_classification(self):
         """Test classification of external service errors"""
-        classifier = TrailTaxonomyClassifier()
+        classifier = EnhancedTrailTaxonomyClassifier()
         
         error = RuntimeError("API timeout after 30 seconds")
         analysis = classifier.classify_error(error)

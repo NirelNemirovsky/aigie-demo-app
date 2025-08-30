@@ -252,6 +252,7 @@ def main():
     workflow_graph = AigieStateGraph(
         state_schema=WorkflowState,  # Pass the Pydantic model class!
         enable_gemini_remediation=True,
+        gemini_project_id=os.environ.get("GOOGLE_CLOUD_PROJECT"),  # Use latest Google Gen AI standards
         auto_apply_fixes=False,
         log_remediation=True
     )

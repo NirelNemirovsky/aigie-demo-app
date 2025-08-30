@@ -21,6 +21,7 @@ class AigieStateGraph(StateGraph):
                  state_schema: Optional[Type[BaseModel]] = None,
                  enable_gemini_remediation: bool = True,
                  gemini_project_id: Optional[str] = None,
+                 gemini_api_key: Optional[str] = None,
                  auto_apply_fixes: bool = False,
                  log_remediation: bool = True,
                  enable_proactive_remediation: bool = True,
@@ -32,7 +33,8 @@ class AigieStateGraph(StateGraph):
         Args:
             state_schema: Pydantic model class for the state schema. If None, uses a default schema.
             enable_gemini_remediation: Whether to enable Gemini AI-powered error remediation
-            gemini_project_id: GCP project ID for Gemini (if None, will auto-detect)
+            gemini_project_id: GCP project ID for Vertex AI (if None, will auto-detect)
+            gemini_api_key: Google API key for Gemini Developer API (if None, will auto-detect)
             auto_apply_fixes: Whether to automatically apply AI-suggested fixes
             log_remediation: Whether to log remediation analysis to GCP
         """
@@ -51,9 +53,17 @@ class AigieStateGraph(StateGraph):
         # LangGraph supports Pydantic models directly!
         super().__init__(state_schema)
         
+        # Auto-detect Gemini configuration for seamless setup
+        self.gemini_config = self._auto_detect_gemini_config(
+            enable_gemini_remediation, 
+            gemini_project_id, 
+            gemini_api_key
+        )
+        
         # Store configuration for enhanced error handling
-        self.enable_gemini_remediation = enable_gemini_remediation
-        self.gemini_project_id = gemini_project_id
+        self.enable_gemini_remediation = self.gemini_config["enabled"]
+        self.gemini_project_id = self.gemini_config["project_id"]
+        self.gemini_api_key = self.gemini_config["api_key"]
         self.auto_apply_fixes = auto_apply_fixes
         self.log_remediation = log_remediation
         self.enable_proactive_remediation = enable_proactive_remediation
@@ -64,6 +74,83 @@ class AigieStateGraph(StateGraph):
         
         # Track nodes for analytics
         self.node_analytics = {}
+        
+        # Log Gemini configuration status
+        self._log_gemini_status()
+
+    def _auto_detect_gemini_config(self, enable_gemini: bool, project_id: Optional[str], api_key: Optional[str]) -> Dict[str, Any]:
+        """
+        Automatically detect Gemini configuration for seamless setup.
+        
+        Priority order:
+        1. Explicit parameters (highest priority)
+        2. Environment variables
+        3. Configuration file
+        4. GCP auto-detection
+        5. Fallback to Trail Taxonomy only
+        """
+        if not enable_gemini:
+            return {"enabled": False, "project_id": None, "api_key": None, "service_type": "disabled"}
+        
+        # Check explicit parameters first
+        if api_key:
+            return {"enabled": True, "project_id": None, "api_key": api_key, "service_type": "developer_api"}
+        
+        if project_id:
+            return {"enabled": True, "project_id": project_id, "api_key": None, "service_type": "vertex_ai"}
+        
+        # Check environment variables
+        env_api_key = os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
+        if env_api_key:
+            return {"enabled": True, "project_id": None, "api_key": env_api_key, "service_type": "developer_api"}
+        
+        env_project_id = os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get("GCP_PROJECT")
+        if env_project_id:
+            return {"enabled": True, "project_id": env_project_id, "api_key": None, "service_type": "vertex_ai"}
+        
+        # Check configuration file
+        config = self._load_config_file()
+        if config.get("api_key"):
+            return {"enabled": True, "project_id": None, "api_key": config["api_key"], "service_type": "developer_api"}
+        
+        if config.get("project_id"):
+            return {"enabled": True, "project_id": config["project_id"], "api_key": None, "service_type": "vertex_ai"}
+        
+        # Fallback: Gemini enabled but no configuration found
+        return {"enabled": True, "project_id": None, "api_key": None, "service_type": "fallback"}
+    
+    def _load_config_file(self) -> Dict[str, Any]:
+        """Load configuration from ~/.aigie/config.json if it exists"""
+        try:
+            config_path = os.path.expanduser("~/.aigie/config.json")
+            if os.path.exists(config_path):
+                with open(config_path, 'r') as f:
+                    return json.loads(f.read())
+        except Exception:
+            pass
+        return {}
+    
+    def _log_gemini_status(self):
+        """Log the Gemini configuration status for user awareness"""
+        if not self.enable_gemini_remediation:
+            print("ℹ️  Gemini AI remediation: Disabled")
+            return
+        
+        config = self.gemini_config
+        service_type = config["service_type"]
+        
+        if service_type == "developer_api":
+            print(f"✅ Gemini AI remediation: Enabled (Developer API)")
+            print(f"   🔑 API Key: {'Configured' if config['api_key'] else 'Not found'}")
+        elif service_type == "vertex_ai":
+            print(f"✅ Gemini AI remediation: Enabled (Vertex AI)")
+            print(f"   🏗️  Project: {config['project_id']}")
+        elif service_type == "fallback":
+            print("⚠️  Gemini AI remediation: Enabled but no configuration found")
+            print("   💡 Set GOOGLE_API_KEY environment variable for AI features")
+            print("   💡 Or create ~/.aigie/config.json with your API key")
+        else:
+            print("ℹ️  Gemini AI remediation: Disabled")
 
     def add_node(self, node_id: str, node_data=None, **node_config):
         """
@@ -79,6 +166,7 @@ class AigieStateGraph(StateGraph):
             enhanced_config = {
                 "enable_gemini_remediation": node_config.get("enable_gemini_remediation", self.enable_gemini_remediation),
                 "gemini_project_id": node_config.get("gemini_project_id", self.gemini_project_id),
+                "gemini_api_key": node_config.get("gemini_api_key", self.gemini_api_key),
                 "auto_apply_fixes": node_config.get("auto_apply_fixes", self.auto_apply_fixes),
                 "log_remediation": node_config.get("log_remediation", self.log_remediation),
                 "enable_adaptive_remediation": node_config.get("enable_adaptive_remediation", self.enable_proactive_remediation),
@@ -220,3 +308,5 @@ class AigieStateGraph(StateGraph):
 
 # Import time module for timestamps
 import time
+import os
+import json

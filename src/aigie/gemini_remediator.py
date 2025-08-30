@@ -1,7 +1,8 @@
 """
-Gemini 2.5 Flash Integration for Intelligent Error Remediation
+Google Gen AI Integration for Intelligent Error Remediation
 
-This module provides AI-powered error analysis and remediation suggestions using Google's Gemini 2.5 Flash model.
+This module provides AI-powered error analysis and remediation suggestions using Google's Gemini models
+through the new Google Gen AI SDK, supporting both Gemini Developer API and Vertex AI services.
 """
 
 import os
@@ -12,12 +13,11 @@ import time
 import functools
 
 try:
-    import vertexai
-    from vertexai.generative_models import GenerativeModel
+    import google.genai
     GEMINI_AVAILABLE = True
 except ImportError:
     GEMINI_AVAILABLE = False
-    print("Warning: Vertex AI SDK not available. Gemini remediation will be disabled.")
+    print("Warning: Google Gen AI SDK not available. Install with: pip install google-genai>=0.3.0")
 
 from .error_taxonomy import ErrorAnalysis, ErrorCategory, ErrorSeverity
 
@@ -46,39 +46,72 @@ class GeminiRemediationResult:
 
 class GeminiRemediator:
     """
-    AI-powered error remediation using Gemini 2.5 Flash
+    AI-powered error remediation using Google's Gemini models via Google Gen AI SDK
     """
     
-    def __init__(self, project_id: Optional[str] = None, location: str = "us-central1"):
+    def __init__(self, api_key: Optional[str] = None, project_id: Optional[str] = None, 
+                 location: str = "us-central1", use_vertex_ai: bool = False):
         """
         Initialize Gemini remediator
         
         Args:
-            project_id: GCP project ID (if None, will try to auto-detect)
+            api_key: Google API key for Gemini Developer API (if None, will try to auto-detect)
+            project_id: GCP project ID for Vertex AI (if use_vertex_ai=True)
             location: GCP location for Vertex AI
+            use_vertex_ai: Whether to use Vertex AI instead of Gemini Developer API
         """
+        self.api_key = api_key or self._get_default_api_key()
         self.project_id = project_id or self._get_default_project()
         self.location = location
-        self.model = None
+        self.use_vertex_ai = use_vertex_ai
+        self.client = None
+        self.model_name = "gemini-2.0-flash-exp"
         self.cache = {}
         self.cache_ttl = 3600  # 1 hour cache
         
-        if GEMINI_AVAILABLE and self.project_id:
+        if GEMINI_AVAILABLE:
             self._initialize_gemini()
+    
+    def _get_default_api_key(self) -> Optional[str]:
+        """Try to get default Google API key from environment"""
+        return os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
     
     def _get_default_project(self) -> Optional[str]:
         """Try to get default GCP project from environment"""
         return os.environ.get("GOOGLE_CLOUD_PROJECT") or os.environ.get("GCP_PROJECT")
     
     def _initialize_gemini(self):
-        """Initialize Gemini model"""
+        """Initialize Gemini model using Google Gen AI SDK"""
         try:
-            vertexai.init(project=self.project_id, location=self.location)
-            self.model = GenerativeModel("gemini-2.0-flash-exp")
-            print(f"✅ Gemini 2.5 Flash initialized for project: {self.project_id}")
+            if self.use_vertex_ai:
+                # Use Vertex AI service
+                if not self.project_id:
+                    raise ValueError("Project ID required for Vertex AI")
+                
+                # Configure for Vertex AI
+                self.client = google.genai.Client(
+                    vertexai=True,
+                    project=self.project_id,
+                    location=self.location
+                )
+                print(f"✅ Gemini initialized for Vertex AI project: {self.project_id}")
+                print(f"📍 Location: {self.location}")
+            else:
+                # Use Gemini Developer API
+                if not self.api_key:
+                    raise ValueError("API key required for Gemini Developer API")
+                
+                # Configure for Gemini Developer API
+                self.client = google.genai.Client(
+                    api_key=self.api_key
+                )
+                print(f"✅ Gemini initialized for Developer API")
+            
+            print(f"🤖 Model: {self.model_name}")
+            
         except Exception as e:
             print(f"⚠️ Failed to initialize Gemini: {e}")
-            self.model = None
+            self.client = None
     
     def analyze_and_remediate(self, error_analysis: ErrorAnalysis, 
                             node_context: Dict[str, Any] = None) -> GeminiRemediationResult:
@@ -94,7 +127,7 @@ class GeminiRemediator:
         """
         start_time = time.time()
         
-        if not self.model:
+        if not self.client:
             return self._fallback_remediation(error_analysis, node_context)
         
         # Create cache key
@@ -110,11 +143,14 @@ class GeminiRemediator:
             # Prepare prompt for Gemini
             prompt = self._create_remediation_prompt(error_analysis, node_context)
             
-            # Get response from Gemini
-            response = self.model.generate_content(prompt)
+            # Get response from Gemini using Google Gen AI SDK
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=[{"parts": [{"text": prompt}]}]
+            )
             
-            # Parse response
-            result = self._parse_gemini_response(response.text, error_analysis)
+            # Parse response using the new response format
+            result = self._parse_gemini_response(response, error_analysis)
             result.execution_time = time.time() - start_time
             
             # Cache result
@@ -185,9 +221,22 @@ Focus on practical, implementable solutions that address the root cause of the e
 """
         return prompt
     
-    def _parse_gemini_response(self, response_text: str, error_analysis: ErrorAnalysis) -> GeminiRemediationResult:
-        """Parse Gemini response into structured format"""
+    def _parse_gemini_response(self, response, error_analysis: ErrorAnalysis) -> GeminiRemediationResult:
+        """Parse Gemini response into structured format using Google Gen AI SDK response object"""
         try:
+            # Extract text from the response
+            if hasattr(response, 'candidates') and response.candidates:
+                candidate = response.candidates[0]
+                if hasattr(candidate, 'content') and candidate.content:
+                    if hasattr(candidate.content, 'parts') and candidate.content.parts:
+                        response_text = candidate.content.parts[0].text
+                    else:
+                        response_text = str(candidate.content)
+                else:
+                    response_text = str(candidate)
+            else:
+                response_text = str(response)
+            
             # Try to extract JSON from response
             json_start = response_text.find('{')
             json_end = response_text.rfind('}') + 1
@@ -303,5 +352,9 @@ Focus on practical, implementable solutions that address the root cause of the e
         return {
             "cache_size": len(self.cache),
             "cache_ttl": self.cache_ttl,
-            "gemini_available": self.model is not None
+            "gemini_available": self.client is not None,
+            "service_type": "vertex_ai" if self.use_vertex_ai else "developer_api"
         }
+    
+    # Alias for backward compatibility
+    analyzeAndRemediate = analyze_and_remediate

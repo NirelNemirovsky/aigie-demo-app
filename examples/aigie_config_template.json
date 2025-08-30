@@ -1,0 +1,6 @@
+{
+    "api_key": "your-gemini-api-key-here",
+    "use_vertex_ai": false,
+    "project_id": null,
+    "location": "us-central1"
+}

@@ -6,7 +6,7 @@ A Python package that provides intelligent error handling and **advanced proacti
 
 - **Native Pydantic Support**: Direct integration with LangGraph's native Pydantic model support
 - **Trail Taxonomy Error Classification**: Comprehensive error categorization based on the Trail Taxonomy paper
-- **Gemini AI Remediation**: AI-powered error analysis and remediation suggestions using Google's Gemini 2.5 Flash
+- **Latest Gemini AI Remediation**: AI-powered error analysis using Google's Gemini 2.5 Flash with Vertex AI SDK 1.50.0+
 - **Real-time Error Handling**: Intelligent error detection and resolution in real-time
 - **Advanced Proactive Error Remediation**: CodeAct/ReAct agent-based automatic error fixing with AI-powered dynamic code generation, intelligent analysis, and safe execution
 - **Learning System**: Memory-based learning from successful fixes with confidence scoring
@@ -14,8 +14,34 @@ A Python package that provides intelligent error handling and **advanced proacti
 - **Comprehensive Analytics**: Detailed error analytics and monitoring
 - **Seamless Integration**: Drop-in replacement for LangGraph's StateGraph
 - **GCP Integration**: Built-in Google Cloud Logging and Vertex AI integration
+- **Latest API Standards**: Updated to use the most current Gemini API patterns and response handling
 
 ## 🏗️ Architecture
+
+### Latest Gemini AI Integration
+
+Aigie now uses the most current Gemini API standards with Google Gen AI SDK 1.32.0+:
+
+```python
+import google.genai
+
+# Initialize with latest standards
+from aigie.gemini_remediator import GeminiRemediator
+
+# For Gemini Developer API (recommended)
+remediator = GeminiRemediator(api_key="your-api-key")
+
+# For Vertex AI (optional)
+remediator = GeminiRemediator(project_id="your-project-id", use_vertex_ai=True)
+
+result = remediator.analyze_and_remediate(error_analysis, context)
+```
+
+**Key Improvements:**
+- **SDK**: Google Gen AI SDK 1.32.0+ (latest recommended)
+- **Dual Support**: Both Gemini Developer API and Vertex AI services
+- **API Patterns**: Modern client-based approach with latest standards
+- **Backward Compatibility**: All existing code continues to work
 
 ### Simplified Pydantic Integration
 
@@ -121,6 +147,9 @@ pip install git+https://github.com/yourusername/aigie-demo-app.git
 git clone https://github.com/yourusername/aigie-demo-app.git
 cd aigie-demo-app
 pip install -e .
+
+# Optional: Run the interactive setup script
+python3 setup_gemini.py
 ```
 
 ### Install Dependencies
@@ -134,10 +163,33 @@ The package will automatically install required dependencies:
 
 ## 🔧 Setup
 
-### 1. GCP Configuration (for Gemini AI features)
+### 1. Gemini AI Configuration (Seamless Setup)
 
+Aigie automatically detects your Gemini configuration for seamless usage:
+
+#### **Option A: Environment Variable (Recommended)**
 ```bash
-# Install gcloud CLI (if not already installed)
+# Set your Gemini API key
+export GOOGLE_API_KEY="your-api-key-from-google-ai-studio"
+
+# That's it! Aigie will work automatically
+```
+
+#### **Option B: Configuration File**
+```bash
+# Create ~/.aigie/config.json
+mkdir -p ~/.aigie
+cat > ~/.aigie/config.json << EOF
+{
+    "api_key": "your-api-key-here",
+    "use_vertex_ai": false
+}
+EOF
+```
+
+#### **Option C: GCP Vertex AI (Advanced)**
+```bash
+# Install gcloud CLI
 # https://cloud.google.com/sdk/docs/install
 
 # Set your GCP project ID
@@ -154,31 +206,58 @@ gcloud services enable logging.googleapis.com
 ### 2. Environment Variables
 
 ```bash
-# Set your GCP project ID
-export GOOGLE_CLOUD_PROJECT="your-gcp-project-id"
+# For Gemini Developer API (recommended)
+export GOOGLE_API_KEY="your-api-key-from-google-ai-studio"
 
-# Optional: Set GCP location (default: us-central1)
+# For Vertex AI (optional)
+export GOOGLE_CLOUD_PROJECT="your-gcp-project-id"
 export GOOGLE_CLOUD_LOCATION="us-central1"
 ```
 
 ### 3. Verify Installation
 
 ```python
-from aigie import AigieStateGraph, TrailTaxonomyClassifier
+from aigie import AigieStateGraph, EnhancedTrailTaxonomyClassifier
 
 # Test basic import
 print("✅ Aigie imported successfully!")
 
 # Test Trail Taxonomy
-classifier = TrailTaxonomyClassifier()
+classifier = EnhancedTrailTaxonomyClassifier()
 print("✅ Trail Taxonomy ready!")
 
-# Test graph creation
-graph = AigieStateGraph()
-print("✅ AigieStateGraph ready!")
+# Test graph creation with Gemini
+graph = AigieStateGraph(enable_gemini_remediation=True)
+print("✅ AigieStateGraph ready with Gemini AI!")
 ```
 
 ## 🎯 Quick Start
+
+### Seamless Gemini Setup
+
+Aigie automatically detects your Gemini configuration for zero-config usage:
+
+```python
+from aigie import AigieStateGraph
+
+# Just enable Gemini - Aigie handles the rest!
+graph = AigieStateGraph(
+    enable_gemini_remediation=True,  # ✅ Works automatically!
+    auto_apply_fixes=False,
+    log_remediation=True
+)
+
+# Aigie will automatically:
+# 1. Check for GOOGLE_API_KEY environment variable
+# 2. Look for ~/.aigie/config.json configuration file
+# 3. Detect GCP project from GOOGLE_CLOUD_PROJECT
+# 4. Fall back to Trail Taxonomy if no Gemini config found
+```
+
+**Setup Options (choose one):**
+- **Environment Variable**: `export GOOGLE_API_KEY="your-key"`
+- **Config File**: Create `~/.aigie/config.json`
+- **GCP Project**: `export GOOGLE_CLOUD_PROJECT="your-project"`
 
 ### Unified Pydantic Approach
 
@@ -257,9 +336,9 @@ Aigie classifies errors into comprehensive categories:
 - **External Errors**: API failures, third-party service issues
 
 ```python
-from aigie import TrailTaxonomyClassifier
+from aigie import EnhancedTrailTaxonomyClassifier
 
-classifier = TrailTaxonomyClassifier()
+classifier = EnhancedTrailTaxonomyClassifier()
 
 # Classify an error
 error = ValueError("Missing required field 'user_id'")
@@ -713,6 +792,11 @@ print(f"Remediation Stats: {graph_analytics['graph_summary']['total_remediations
 
 See the `examples/` directory for comprehensive examples:
 
+### 🚀 Latest Gemini API Examples
+- **`examples/enhanced_usage.py`**: Demonstrates the most current Gemini API patterns and standards with Pydantic models
+- **`examples/enhanced_usage.py`**: Shows Aigie integration with latest Gemini features
+- **`examples/basic_usage.py`**: Basic functionality and setup
+
 - `basic_usage.py`: Basic functionality demonstration
 - `enhanced_usage.py`: Full Trail Taxonomy and Gemini AI demonstration
 
@@ -724,7 +808,12 @@ python examples/basic_usage.py
 
 # Enhanced usage with Trail Taxonomy and Gemini
 python examples/enhanced_usage.py
+
+# Latest Gemini API patterns and standards
+python examples/enhanced_usage.py
 ```
+
+> **💡 Gemini Implementation**: For complete details on the consolidated Gemini implementation, see [GEMINI_IMPLEMENTATION_SUMMARY.md](GEMINI_IMPLEMENTATION_SUMMARY.md)
 
 ## 🧪 Testing
 
