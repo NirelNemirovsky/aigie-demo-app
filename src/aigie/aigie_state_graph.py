@@ -50,8 +50,19 @@ class AigieStateGraph(StateGraph):
         self.state_schema = state_schema
         
         # Initialize the underlying StateGraph with the Pydantic schema
-        # LangGraph supports Pydantic models directly!
-        super().__init__(state_schema)
+        # Convert Pydantic model to LangGraph-compatible format
+        if state_schema and issubclass(state_schema, BaseModel):
+            # Create a dictionary-based state schema for LangGraph compatibility
+            state_dict = {}
+            for field_name, field_info in state_schema.__fields__.items():
+                if field_info.default is not None:
+                    state_dict[field_name] = field_info.default
+                else:
+                    state_dict[field_name] = None
+            
+            super().__init__(state_dict)
+        else:
+            super().__init__(state_schema)
         
         # Auto-detect Gemini configuration for seamless setup
         self.gemini_config = self._auto_detect_gemini_config(
@@ -77,6 +88,9 @@ class AigieStateGraph(StateGraph):
         
         # Log Gemini configuration status
         self._log_gemini_status()
+        
+        # Store the original Pydantic schema for conversion
+        self._pydantic_schema = state_schema if state_schema and issubclass(state_schema, BaseModel) else None
 
     def _auto_detect_gemini_config(self, enable_gemini: bool, project_id: Optional[str], api_key: Optional[str]) -> Dict[str, Any]:
         """
@@ -181,6 +195,7 @@ class AigieStateGraph(StateGraph):
             wrapped_node = PolicyNode(
                 inner=node_data, 
                 name=node_id,
+                pydantic_schema=self._pydantic_schema,
                 **enhanced_config
             )
             
@@ -238,6 +253,55 @@ class AigieStateGraph(StateGraph):
                 all_analytics[nid] = {"error": "Node does not support analytics"}
         
         return all_analytics
+    
+    def to_dict(self, state: Any) -> Dict[str, Any]:
+        """Convert Pydantic model to dictionary for LangGraph compatibility"""
+        if self._pydantic_schema and isinstance(state, self._pydantic_schema):
+            return state.dict()
+        elif isinstance(state, dict):
+            return state
+        else:
+            return state
+    
+    def invoke(self, state: Any, config: Optional[Any] = None) -> Any:
+        """Custom invoke method that handles Pydantic model conversion"""
+        # Convert Pydantic model to dictionary for LangGraph compatibility
+        if self._pydantic_schema and isinstance(state, self._pydantic_schema):
+            state_dict = state.dict()
+        else:
+            state_dict = state
+        
+        # Compile and invoke
+        compiled_workflow = self.compile()
+        result = compiled_workflow.invoke(state_dict, config=config)
+        
+        # Convert result back to Pydantic model if applicable
+        if self._pydantic_schema and isinstance(result, dict):
+            return self._pydantic_schema(**result)
+        return result
+    
+    def from_dict(self, state_dict: Dict[str, Any]) -> Any:
+        """Convert dictionary back to Pydantic model"""
+        if self._pydantic_schema and isinstance(state_dict, dict):
+            return self._pydantic_schema(**state_dict)
+        else:
+            return state_dict
+    
+    def validate_state(self, state: Any) -> bool:
+        """Validate state against the schema"""
+        if self._pydantic_schema:
+            try:
+                if isinstance(state, self._pydantic_schema):
+                    return True
+                elif isinstance(state, dict):
+                    # Validate by creating a temporary instance
+                    self._pydantic_schema(**state)
+                    return True
+                else:
+                    return False
+            except Exception:
+                return False
+        return True
 
     def get_graph_analytics(self) -> Dict[str, Any]:
         """

@@ -14,9 +14,14 @@ from datetime import datetime
 from enum import Enum
 from pydantic import BaseModel, Field
 import uuid
+import os
 
 # Import the enhanced Aigie components
-from aigie import AigieStateGraph
+import sys
+import os
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
+
+from src.aigie.aigie_state_graph import AigieStateGraph
 
 
 # Define workflow step enum
@@ -259,22 +264,22 @@ def main():
     
     # Add nodes - they work directly with Pydantic models
     workflow_graph.add_node("ticket_reception", ticket_reception_node)
-    workflow_graph.add_node("intent_analysis", intent_analysis_node)
-    workflow_graph.add_node("solution_generation", solution_generation_node)
-    workflow_graph.add_node("quality_check", quality_check_node)
-    workflow_graph.add_node("response_sent", response_sent_node)
-    workflow_graph.add_node("follow_up_scheduled", follow_up_scheduled_node)
+    workflow_graph.add_node("analyze_intent", intent_analysis_node)
+    workflow_graph.add_node("generate_solution", solution_generation_node)
+    workflow_graph.add_node("check_quality", quality_check_node)
+    workflow_graph.add_node("send_response", response_sent_node)
+    workflow_graph.add_node("schedule_followup", follow_up_scheduled_node)
     
     # Set up the workflow flow
     workflow_graph.set_entry_point("ticket_reception")
-    workflow_graph.add_edge("ticket_reception", "intent_analysis")
-    workflow_graph.add_edge("intent_analysis", "solution_generation")
-    workflow_graph.add_edge("solution_generation", "quality_check")
-    workflow_graph.add_edge("quality_check", "response_sent")
-    workflow_graph.add_edge("response_sent", "follow_up_scheduled")
-    workflow_graph.set_finish_point("follow_up_scheduled")
+    workflow_graph.add_edge("ticket_reception", "analyze_intent")
+    workflow_graph.add_edge("analyze_intent", "generate_solution")
+    workflow_graph.add_edge("generate_solution", "check_quality")
+    workflow_graph.add_edge("check_quality", "send_response")
+    workflow_graph.add_edge("send_response", "schedule_followup")
+    workflow_graph.set_finish_point("schedule_followup")
     
-    # Execute the workflow with Pydantic model
+    # Execute the workflow with Pydantic model (handles conversion automatically)
     print("🔄 Executing workflow...")
     final_state = workflow_graph.invoke(initial_state)
     

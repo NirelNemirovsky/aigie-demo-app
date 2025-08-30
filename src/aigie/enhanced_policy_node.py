@@ -62,6 +62,8 @@ class PolicyNode(Runnable[GraphLike, GraphLike]):
         on_error: Optional[callable] = None,
         enable_gemini_remediation: bool = True,
         gemini_project_id: Optional[str] = None,
+        gemini_api_key: Optional[str] = None,
+        pydantic_schema: Optional[Type[BaseModel]] = None,
         auto_apply_fixes: bool = True,  # Changed to True by default
         log_remediation: bool = True,
         enable_adaptive_remediation: bool = True,  # NEW: Enable adaptive remediation
@@ -76,6 +78,9 @@ class PolicyNode(Runnable[GraphLike, GraphLike]):
         self.tweak_input = tweak_input
         self.on_error = on_error
         self.enable_gemini_remediation = enable_gemini_remediation
+        self.gemini_project_id = gemini_project_id
+        self.gemini_api_key = gemini_api_key
+        self._pydantic_schema = pydantic_schema
         self.auto_apply_fixes = auto_apply_fixes
         self.log_remediation = log_remediation
         self.enable_adaptive_remediation = enable_adaptive_remediation
@@ -95,17 +100,17 @@ class PolicyNode(Runnable[GraphLike, GraphLike]):
             )
         
         if enable_gemini_remediation:
-            # Use the auto-detected Gemini configuration
+            # Use the passed Gemini configuration
             if gemini_project_id:
                 # Use Vertex AI service
                 self.gemini_remediator = GeminiRemediator(
                     project_id=gemini_project_id,
                     use_vertex_ai=True
                 )
-            elif hasattr(self, 'gemini_api_key') and self.gemini_api_key:
+            elif gemini_api_key:
                 # Use Gemini Developer API
                 self.gemini_remediator = GeminiRemediator(
-                    api_key=self.gemini_api_key,
+                    api_key=gemini_api_key,
                     use_vertex_ai=False
                 )
             else:
@@ -137,9 +142,23 @@ class PolicyNode(Runnable[GraphLike, GraphLike]):
     
     def _invoke_once(self, state: GraphLike, config: Optional[RunnableConfig]) -> GraphLike:
         """Execute the inner function once"""
+        # Convert state to Pydantic model if it's a dict
+        if isinstance(state, dict) and hasattr(self, '_pydantic_schema') and self._pydantic_schema:
+            try:
+                state = self._pydantic_schema(**state)
+            except Exception as e:
+                print(f"⚠️ Failed to convert state to Pydantic model: {e}")
+                # Continue with dict state
+        
         if hasattr(self.inner, "invoke"):
-            return self.inner.invoke(state, config=config)
-        return self.inner(state)
+            result = self.inner.invoke(state, config=config)
+        else:
+            result = self.inner(state)
+        
+        # Convert result back to dict if it's a Pydantic model
+        if hasattr(result, 'dict'):
+            return result.dict()
+        return result
     
     def invoke(self, state: GraphLike, config: Optional[RunnableConfig] = None) -> GraphLike:
         """Enhanced invoke with advanced error handling and learning"""
@@ -197,7 +216,13 @@ class PolicyNode(Runnable[GraphLike, GraphLike]):
                 error_result = self._handle_error_with_enhanced_remediation(e, attempt, cur_state, config)
                 
                 # Update state with error analysis
-                cur_state.update(error_result.get("state_updates", {}))
+                if hasattr(cur_state, 'update'):
+                    cur_state.update(error_result.get("state_updates", {}))
+                else:
+                    # For Pydantic models, set attributes directly
+                    for key, value in error_result.get("state_updates", {}).items():
+                        if hasattr(cur_state, key):
+                            setattr(cur_state, key, value)
                 
                 # Apply automatic fixes if enabled and available
                 if self.auto_apply_fixes and error_result.get("auto_fix_applied"):
