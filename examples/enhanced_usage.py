@@ -9,7 +9,7 @@ The key insight: Aigie internally uses plain dictionaries, but we provide
 a seamless interface that handles conversion automatically.
 """
 
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from datetime import datetime
 from enum import Enum
 from pydantic import BaseModel, Field
@@ -93,6 +93,12 @@ class WorkflowState(BaseModel):
     error_message: Optional[str] = None
     workflow_started_at: datetime = Field(default_factory=datetime.now)
     last_updated_at: datetime = Field(default_factory=datetime.now)
+    
+    # AIGIE-specific fields for enhanced error handling and remediation
+    error_details: Optional[Dict[str, Any]] = None
+    gemini_remediation_details: Optional[Dict[str, Any]] = None
+    aigie_metadata: Optional[Dict[str, Any]] = None
+    last_node: Optional[str] = None
 
 
 # Define workflow nodes that work directly with Pydantic models

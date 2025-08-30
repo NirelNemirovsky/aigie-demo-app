@@ -219,7 +219,11 @@ class PolicyNode(Runnable[GraphLike, GraphLike]):
                                 severity="INFO"
                             )
                         except Exception as e:
-                            logger.warning(f"Failed to log to GCP: {e}")
+                            # Gracefully handle GCP logging permission issues
+                            if "403" in str(e) or "Permission" in str(e):
+                                logger.info(f"GCP logging not available (permissions): {e}")
+                            else:
+                                logger.warning(f"Failed to log to GCP: {e}")
                 
                 # Always return a dictionary for LangGraph compatibility
                 if hasattr(cur_state, 'dict'):
@@ -438,7 +442,11 @@ class PolicyNode(Runnable[GraphLike, GraphLike]):
                     severity="ERROR"
                 )
             except Exception as e:
-                logger.warning(f"Failed to log to GCP: {e}")
+                # Gracefully handle GCP logging permission issues
+                if "403" in str(e) or "Permission" in str(e):
+                    logger.info(f"GCP logging not available (permissions): {e}")
+                else:
+                    logger.warning(f"Failed to log to GCP: {e}")
         
         # Log Adaptive Remediation if available
         if adaptive_fix_result:
