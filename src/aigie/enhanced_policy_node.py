@@ -94,10 +94,17 @@ class PolicyNode(Runnable[GraphLike, GraphLike]):
         self.gemini_remediator = None
         
         if enable_adaptive_remediation:
-            self.adaptive_remediation_engine = AdaptiveRemediationEngine(
-                max_attempts=max_adaptive_attempts,
-                confidence_threshold=confidence_threshold
-            )
+            # Only enable adaptive remediation if we're working with dictionary states
+            # Pydantic models have their own validation and don't need proactive field addition
+            if pydantic_schema is None:
+                self.adaptive_remediation_engine = AdaptiveRemediationEngine(
+                    max_attempts=max_adaptive_attempts,
+                    confidence_threshold=confidence_threshold
+                )
+            else:
+                # Disable adaptive remediation for Pydantic models to avoid field access errors
+                self.enable_adaptive_remediation = False
+                print(f"⚠️ Adaptive remediation disabled for Pydantic model: {pydantic_schema.__name__}")
         
         if enable_gemini_remediation:
             # Use the passed Gemini configuration
@@ -243,6 +250,9 @@ class PolicyNode(Runnable[GraphLike, GraphLike]):
                     for key, value in error_result.get("state_updates", {}).items():
                         if hasattr(cur_state, key):
                             setattr(cur_state, key, value)
+                        else:
+                            # Skip fields that don't exist in the Pydantic model
+                            print(f"⚠️ Skipping non-existent field '{key}' in {type(cur_state).__name__}")
                 
                 # Apply automatic fixes if enabled and available
                 if self.auto_apply_fixes and error_result.get("auto_fix_applied"):
@@ -374,7 +384,7 @@ class PolicyNode(Runnable[GraphLike, GraphLike]):
             "node_name": self.name,
             "node_type": type(self.inner).__name__,
             "environment": "production",  # Could be made configurable
-            "state_keys": list(state.keys()) if state else [],
+            "state_keys": list(state.keys()) if hasattr(state, 'keys') and callable(getattr(state, 'keys')) else (list(state.__fields__.keys()) if hasattr(state, '__fields__') else []),
             "state_size": len(str(state)) if state else 0,
             "config": config
         }
